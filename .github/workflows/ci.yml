@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run pyright
+        run: uv run pyright
+
+      - name: Check types against HF dataset schema
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: uv run pytest tests/ -v
