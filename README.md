@@ -17,11 +17,5 @@ To run the example reproduction code on OpenRouter models, you need to set the `
 
 We query from subject models in OpenRouter for simplicity, but we note that many unexpected behaviors are sensitive to quantization and other settings that vary between providers. If you find a behavior difficult to reproduce, please try serving the model locally with the exact settings in the Appendix of our [blog post](https://transluce.org/weirdchat).
 
-To get started, install the package with [uv](https://docs.astral.sh/uv/):
-
-```bash 
-uv sync
-```
-
-For a walkthrough of how to use this package, see [`examples/01_quickstart`](examples/01_quickstart).
+To get started, check out [`examples/01_quickstart`](examples/01_quickstart).
 
