@@ -23,6 +23,10 @@ continuous, judge-free, token-localized measure — e.g. "at which token does th
 model tip into Russian / self-harm instructions?", and "does draft surprise
 correlate with the unexpectedness Elo?".
 
+**Quickstart:** [`quickstart_colab.ipynb`](quickstart_colab.ipynb) runs the
+CPU phases (0 and 1a) directly in Google Colab, reading `HF_TOKEN` from Colab
+Secrets.
+
 ## Prerequisites
 
 - A DeepSpec checkout (`DEEPSPEC_ROOT`) with its `requirements.txt` installed.
