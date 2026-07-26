@@ -214,7 +214,6 @@ def main() -> None:
     args = parser.parse_args()
 
     resolve_deepspec_root(args.deepspec_root)
-    register_weirdchat_template()
 
     import torch
     from transformers import AutoModel, AutoTokenizer
@@ -225,6 +224,15 @@ def main() -> None:
 
     device = torch.device(args.device)
     tokenizer = AutoTokenizer.from_pretrained(args.target)
+
+    # Must match the rendering used to build the target cache the draft trained
+    # against — honor WEIRDSPEC_STRIP_THINK the same way the training config does.
+    strip_prefix = None
+    if os.environ.get("WEIRDSPEC_STRIP_THINK") == "1":
+        from surprise_common import detect_assistant_prefix
+
+        strip_prefix = detect_assistant_prefix(tokenizer) or None
+    register_weirdchat_template(strip_think_prefix=strip_prefix)
 
     draft_model = (
         Qwen3DSparkModel.from_pretrained(args.draft, dtype=torch.bfloat16).to(device).eval()

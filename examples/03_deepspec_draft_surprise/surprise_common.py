@@ -49,13 +49,44 @@ def resolve_deepspec_root(cli_value: str | None = None) -> str:
     return root
 
 
-def register_weirdchat_template() -> None:
+def detect_assistant_prefix(tokenizer, header: str = "<|im_start|>assistant\n") -> str:
+    """Return the scaffold the chat template emits before assistant content.
+
+    Renders a sentinel assistant turn and extracts whatever the template puts
+    between the assistant header and the actual content — e.g. an empty
+    ``<think>\\n\\n</think>\\n\\n`` block for thinking-by-default Qwen models.
+    Empty string if the template adds nothing. Uses only the tokenizer, so it
+    runs without model weights (Colab-friendly).
+    """
+    sentinel = "WEIRDSPEC_CONTENT_SENTINEL"
+    text = tokenizer.apply_chat_template(
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": sentinel}],
+        tokenize=False,
+        add_generation_prompt=False,
+    )
+    start = text.rfind(header)
+    if start < 0:
+        return ""
+    after = text[start + len(header) :]
+    end = after.find(sentinel)
+    if end < 0:
+        return ""
+    return after[:end]
+
+
+def register_weirdchat_template(strip_think_prefix: str | None = None) -> None:
     """Idempotently register the system-prompt-free Qwen template in DeepSpec.
 
     With `deepspec_qwen36.patch` applied, the template also forces
-    ``enable_thinking=False`` at render time (the qwen3.6 chat template
-    otherwise inserts ``<think>`` blocks into plain transcripts). On an
-    unpatched DeepSpec the field does not exist and is skipped.
+    ``enable_thinking=False`` at render time. On an unpatched DeepSpec the
+    ``enable_thinking``/``prefix_added_by_template`` fields don't exist and are
+    skipped.
+
+    ``strip_think_prefix`` (the scaffold from :func:`detect_assistant_prefix`)
+    is optional: when given and supported, the registered template strips that
+    prefix from the assistant loss mask so training/scoring focus on real
+    content rather than the empty ``<think></think>`` scaffold. Off by default
+    to keep the exact rendering that phase 0's parser gate validated.
     """
     from deepspec.data.parser import TEMPLATE_REGISTRY, ChatTemplate  # type: ignore[import-not-found]
 
@@ -64,9 +95,13 @@ def register_weirdchat_template() -> None:
         return
     except KeyError:
         pass
+    fields = getattr(ChatTemplate, "__dataclass_fields__", {})
     kwargs: dict[str, Any] = {}
-    if "enable_thinking" in getattr(ChatTemplate, "__dataclass_fields__", {}):
+    if "enable_thinking" in fields:
         kwargs["enable_thinking"] = False
+    if strip_think_prefix and "prefix_added_by_template" in fields:
+        kwargs["assistant_loss_prefix"] = strip_think_prefix
+        kwargs["prefix_added_by_template"] = True
     TEMPLATE_REGISTRY.register(
         WEIRDCHAT_TEMPLATE_NAME,
         ChatTemplate(
@@ -95,6 +130,23 @@ def unwrap_text_config(config: Any) -> tuple[Any, str | None]:
 # (DeepSpec's Qwen3 configs use `<|fim_pad|>` = 151669, which no longer exists
 # in the qwen3.6 tokenizer).
 _MASK_TOKEN_KEYWORDS = ("fim_pad", "mask", "pad", "unused", "reserved", "fim")
+
+
+def resolve_draft_intermediate_size(config: Any) -> tuple[int, str]:
+    """Pick a dense FFN width for the draft, returning (size, source).
+
+    The DSpark draft is always dense, so it needs a scalar ``intermediate_size``.
+    Dense targets carry one; MoE targets (no ``intermediate_size``) fall back to
+    the per-expert ``moe_intermediate_size``, else a Qwen-style 8/3·hidden width.
+    """
+    dense = getattr(config, "intermediate_size", None)
+    if dense is not None:
+        return int(dense), "intermediate_size"
+    moe = getattr(config, "moe_intermediate_size", None)
+    if moe is not None:
+        return int(moe), "moe_intermediate_size"
+    hidden = int(config.hidden_size)
+    return (round(hidden * 8 / 3 / 128) * 128), "derived_from_hidden_size"
 
 
 def pick_mask_token(special_tokens: dict[str, int], reserved: set[str]) -> tuple[str, int]:

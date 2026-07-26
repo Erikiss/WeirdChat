@@ -17,9 +17,11 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from surprise_common import (  # noqa: E402
+    detect_assistant_prefix,
     messages_to_conversations,
     pick_mask_token,
     recommend_target_layer_ids,
+    resolve_draft_intermediate_size,
     spearman,
     summarize_token_scores,
     unwrap_text_config,
@@ -193,6 +195,45 @@ def test_unwrap_text_config_nested_and_flat():
     both = SimpleNamespace(num_hidden_layers=36, text_config=inner)
     cfg, nesting = unwrap_text_config(both)
     assert cfg is both and nesting is None
+
+
+def test_resolve_draft_intermediate_size_dense_moe_and_derived():
+    dense = SimpleNamespace(intermediate_size=18944, hidden_size=4096)
+    assert resolve_draft_intermediate_size(dense) == (18944, "intermediate_size")
+    # MoE: no dense intermediate_size, falls back to per-expert size.
+    moe = SimpleNamespace(intermediate_size=None, moe_intermediate_size=1536, hidden_size=4096)
+    assert resolve_draft_intermediate_size(moe) == (1536, "moe_intermediate_size")
+    # Neither present: Qwen-style 8/3 * hidden, rounded to a multiple of 128.
+    bare = SimpleNamespace(intermediate_size=None, moe_intermediate_size=None, hidden_size=3072)
+    size, source = resolve_draft_intermediate_size(bare)
+    assert source == "derived_from_hidden_size"
+    assert size % 128 == 0 and 7000 < size < 9000
+
+
+class _FakeTokenizer:
+    """Minimal apply_chat_template stand-in that emits a <think> scaffold."""
+
+    def __init__(self, scaffold: str):
+        self.scaffold = scaffold
+
+    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=False, **kw):
+        assert not tokenize
+        parts = []
+        for m in messages:
+            if m["role"] == "user":
+                parts.append(f"<|im_start|>user\n{m['content']}<|im_end|>\n")
+            else:
+                parts.append(f"<|im_start|>assistant\n{self.scaffold}{m['content']}<|im_end|>\n")
+        if add_generation_prompt:
+            parts.append("<|im_start|>assistant\n")
+        return "".join(parts)
+
+
+def test_detect_assistant_prefix_extracts_scaffold():
+    tok = _FakeTokenizer("<think>\n\n</think>\n\n")
+    assert detect_assistant_prefix(tok) == "<think>\n\n</think>\n\n"
+    # No scaffold -> empty prefix.
+    assert detect_assistant_prefix(_FakeTokenizer("")) == ""
 
 
 def test_pick_mask_token_prefers_pad_like_and_skips_reserved():

@@ -28,9 +28,25 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from surprise_common import WEIRDCHAT_TEMPLATE_NAME, register_weirdchat_template
+from surprise_common import (
+    WEIRDCHAT_TEMPLATE_NAME,
+    detect_assistant_prefix,
+    register_weirdchat_template,
+)
 
-register_weirdchat_template()
+# Optionally strip the qwen3.6 <think></think> scaffold from the assistant loss
+# mask (WEIRDSPEC_STRIP_THINK=1). Off by default: the default rendering is what
+# phase 0's parser gate validated.
+_strip_prefix = None
+if os.environ.get("WEIRDSPEC_STRIP_THINK") == "1":
+    from transformers import AutoTokenizer
+
+    _tok = AutoTokenizer.from_pretrained(
+        os.environ.get("WEIRDSPEC_TARGET_MODEL", "Qwen/Qwen3.6-35B-A3B")
+    )
+    _strip_prefix = detect_assistant_prefix(_tok) or None
+
+register_weirdchat_template(strip_think_prefix=_strip_prefix)
 
 from deepspec.trainer import Qwen3DSparkTrainer
 from deepspec.utils.constant import BASE_CKPT_DIR, BASE_TB_DIR
@@ -46,6 +62,9 @@ model = dict(
     # Placeholder for a 48-layer target — override with phase 0's
     # recommended_target_layer_ids via --opts.
     target_layer_ids=[1, 12, 23, 34, 45],
+    # The dense draft needs an intermediate_size; the MoE target defines none,
+    # so set it from phase 0's recommended_draft_intermediate_size.
+    draft_intermediate_size=int(os.environ.get("WEIRDSPEC_DRAFT_INTERMEDIATE_SIZE", "0")) or None,
     # DeepSpec's Qwen3 default (151669, `<|fim_pad|>`) is NOT a special token
     # in the qwen3.6 tokenizer — set this from phase 0's
     # recommended_mask_token_id.

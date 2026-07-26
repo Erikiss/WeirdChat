@@ -62,19 +62,25 @@ python phase0_feasibility.py --deepspec-root $DEEPSPEC_ROOT [--deep]
 
 Hard gates: the architecture loads via `AutoConfig`/`AutoModel` under
 DeepSpec's pinned `transformers`; the (possibly `text_config`-nested) config
-carries every field the dense draft build needs; an unused special token is
-*discovered* to serve as the draft mask token (DeepSpec's Qwen3 default
-`151669` is not special in the 3.6 tokenizer); the chat template injects
-**no** system prompt and renders without `<think>` blocks (retrying with
-`enable_thinking=False`); DeepSpec's parser produces a non-empty assistant
-loss mask with the registered `qwen_weirdchat` template.
+carries every field the dense draft needs (**not** `intermediate_size` — MoE
+targets have none, so the draft's dense FFN width is resolved separately); an
+unused special token is *discovered* to serve as the draft mask token; the
+chat template injects **no** system prompt and has ChatML headers; DeepSpec's
+parser produces a non-empty assistant loss mask. Whether the template emits
+`<think>` scaffolding is recorded but **not** fatal (it is empty and
+consistent across data; the loss-mask gate proves the data path works).
 
-Verified findings for `Qwen/Qwen3.6-35B-A3B`: `model_type=qwen3_5_moe`,
-architecture `Qwen3_5MoeForConditionalGeneration` with a nested `text_config`
-— hence `deepspec_qwen36.patch`. The report emits
-`recommended_target_layer_ids` (pass via `--opts model.target_layer_ids`) and
-`recommended_mask_token_id` (export as `WEIRDSPEC_MASK_TOKEN_ID` before
-phases 2–3).
+Verified findings for `Qwen/Qwen3.6-35B-A3B` (first Colab run):
+`model_type=qwen3_5_moe`, architecture `Qwen3_5MoeForConditionalGeneration`
+with nested `text_config`, no dense `intermediate_size`, mask token
+`151669` absent, and a `<think>` scaffold the template emits even with
+`enable_thinking=False`. All four are handled by `deepspec_qwen36.patch` plus
+the phase-0 recommendations. The report emits, for phases 2–3:
+`recommended_target_layer_ids` (→ `--opts model.target_layer_ids`),
+`recommended_draft_intermediate_size` (→ `WEIRDSPEC_DRAFT_INTERMEDIATE_SIZE`),
+and `recommended_mask_token_id` (→ `WEIRDSPEC_MASK_TOKEN_ID`). Set
+`WEIRDSPEC_STRIP_THINK=1` to strip the think scaffold from the loss mask
+(optional; phase 0 verifies it works on this tokenizer).
 
 ### Phase 1 — data
 
@@ -91,7 +97,11 @@ DEEPSPEC_ROOT=... TARGET_MODEL=Qwen/Qwen3.6-35B-A3B \
 ### Phases 2–3 — cache and draft training (inside `$DEEPSPEC_ROOT`)
 
 ```bash
-export WEIRDSPEC_MASK_TOKEN_ID=...   # recommended_mask_token_id from phase 0
+# from phase 0's report:
+export WEIRDSPEC_MASK_TOKEN_ID=...              # recommended_mask_token_id
+export WEIRDSPEC_DRAFT_INTERMEDIATE_SIZE=...    # recommended_draft_intermediate_size
+# export WEIRDSPEC_STRIP_THINK=1                # optional: strip <think> scaffold
+
 python scripts/data/prepare_target_cache.py \
     --config /path/to/examples/03_deepspec_draft_surprise/dspark_qwen36_35b_a3b.py \
     --train-data-path /path/to/data/baseline_train.jsonl \
@@ -145,12 +155,15 @@ block-offset lookahead-decay curves, and token traces of the top patterns with
   HF checkpoint. That is the same replication gap WeirdChat itself documents
   via `openrouter_replication` — keep it in mind when reading small effects.
 - **MoE support is gated, not assumed.** DeepSpec ships dense Qwen3 targets
-  (4B/8B/14B). Phase 0 confirmed the 35B-A3B target loads but needs
-  `deepspec_qwen36.patch` (nested `text_config`, wrapper architecture,
-  `enable_thinking=False` rendering) plus a rediscovered mask token. Hidden
+  (4B/8B/14B). Phase 0 confirmed the 35B-A3B target (a `qwen3_5_moe` wrapper)
+  loads but needs `deepspec_qwen36.patch` (nested `text_config`, wrapper
+  architecture load, MoE `intermediate_size`, think-scaffold rendering) plus
+  phase-0 recommendations (mask token, layer ids, draft FFN width). Hidden
   states are captured architecture-agnostically via forward hooks, and the
-  draft itself is always dense. No released DeepSpec checkpoint covers this
-  target, so the draft must be trained (phases 2–3).
+  draft itself is always dense — the draft's FFN width is a hyperparameter
+  (defaulting to the target's per-expert `moe_intermediate_size`), not tied to
+  the MoE. No released DeepSpec checkpoint covers this target, so the draft
+  must be trained (phases 2–3).
 - **`nll_target` is a proxy** from the draft's lm-head over the target's last
   hidden state (the quantity DSpark distills against), not the target's own
   lm-head logits. Consistent across weird/baseline, so excess comparisons

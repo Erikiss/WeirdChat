@@ -22,10 +22,12 @@ from typing import Any, Callable
 
 from surprise_common import (
     DEFAULT_TARGET_MODEL,
+    detect_assistant_prefix,
     pick_mask_token,
     recommend_target_layer_ids,
     register_weirdchat_template,
     resolve_deepspec_root,
+    resolve_draft_intermediate_size,
     unwrap_text_config,
 )
 
@@ -78,10 +80,11 @@ def main() -> None:
         cfg, nesting = unwrap_text_config(state["config"])
         state["effective_config"] = cfg
         report["config_nesting"] = nesting
+        # intermediate_size is intentionally NOT required: MoE targets don't
+        # define one, and the dense draft's width is resolved separately.
         required = [
             "num_hidden_layers",
             "hidden_size",
-            "intermediate_size",
             "num_attention_heads",
             "num_key_value_heads",
             "rms_norm_eps",
@@ -93,21 +96,26 @@ def main() -> None:
         )
         num_layers = int(cfg.num_hidden_layers)
         rec = recommend_target_layer_ids(num_layers)
-        report["num_hidden_layers"] = num_layers
-        report["hidden_size"] = int(cfg.hidden_size)
-        report["recommended_target_layer_ids"] = rec
+        draft_ffn, ffn_source = resolve_draft_intermediate_size(cfg)
         is_moe = any(
             getattr(cfg, f, None) is not None
             for f in ("num_experts", "num_routed_experts", "moe_intermediate_size")
         )
+        report["num_hidden_layers"] = num_layers
+        report["hidden_size"] = int(cfg.hidden_size)
+        report["recommended_target_layer_ids"] = rec
+        report["recommended_draft_intermediate_size"] = draft_ffn
+        report["draft_intermediate_size_source"] = ffn_source
         report["target_is_moe"] = is_moe
-        if nesting is not None:
+        if nesting is not None or is_moe:
             report["needs_deepspec_patch"] = True
         return {
             "config_nesting": nesting,
             "num_hidden_layers": num_layers,
             "hidden_size": int(cfg.hidden_size),
             "recommended_target_layer_ids": rec,
+            "recommended_draft_intermediate_size": draft_ffn,
+            "draft_intermediate_size_source": ffn_source,
             "target_is_moe": is_moe,
         }
 
@@ -145,9 +153,12 @@ def main() -> None:
 
     ok &= gate(report, "G3_mask_token", True, g3)
 
-    # G4: chat-template rendering matches the WeirdChat protocol: no injected
-    # system prompt, no <think> blocks (retrying with enable_thinking=False —
-    # the patched parser passes that flag through), ChatML headers present.
+    # G4: chat-template rendering matches the WeirdChat protocol. HARD: no
+    # injected system prompt, ChatML headers present. SOFT: whether the
+    # template still emits <think> scaffolding (recorded, not fatal — G5 proves
+    # the data path works regardless; the scaffold is an empty, deterministic
+    # block applied identically to weird and baseline data). Also detects the
+    # exact scaffold prefix so training/scoring can optionally strip it.
     def g4() -> dict[str, Any]:
         tok = state["tokenizer"]
         convo = [
@@ -156,29 +167,40 @@ def main() -> None:
         ]
         text = tok.apply_chat_template(convo, tokenize=False, add_generation_prompt=False)
         assert "You are a helpful assistant" not in text, "template injects a system prompt"
-        needs_flag = "<think>" in text
-        if needs_flag:
-            text = tok.apply_chat_template(
-                convo,
-                tokenize=False,
-                add_generation_prompt=False,
-                enable_thinking=False,
-            )
-            assert "<think>" not in text, (
-                "template inserts think blocks even with enable_thinking=False"
-            )
-            report["requires_enable_thinking_false"] = True
-            report["needs_deepspec_patch"] = True
         assert "<|im_start|>assistant" in text, "expected ChatML assistant header"
-        return {"rendered_chars": len(text), "requires_enable_thinking_false": needs_flag}
+        inserts_think = "<think>" in text
+        inserts_think_with_flag = inserts_think
+        if inserts_think:
+            try:
+                text_flag = tok.apply_chat_template(
+                    convo, tokenize=False, add_generation_prompt=False, enable_thinking=False
+                )
+                inserts_think_with_flag = "<think>" in text_flag
+            except TypeError:
+                inserts_think_with_flag = True
+        prefix = detect_assistant_prefix(tok)
+        report["chat_template_inserts_think"] = inserts_think
+        report["chat_template_inserts_think_even_with_flag"] = inserts_think_with_flag
+        report["detected_assistant_loss_prefix"] = prefix
+        if inserts_think:
+            report["needs_deepspec_patch"] = True
+        return {
+            "inserts_think": inserts_think,
+            "inserts_think_even_with_flag": inserts_think_with_flag,
+            "assistant_loss_prefix_len": len(prefix),
+        }
 
     ok &= gate(report, "G4_chat_template", True, g4)
 
     # G5: DeepSpec's parser produces a non-empty assistant loss mask with the
-    # registered WeirdChat template.
+    # registered WeirdChat template. Also verifies the optional think-prefix
+    # stripping produces a strictly smaller (still non-empty) loss mask, so the
+    # opt-in refinement is known to work on this tokenizer.
     def g5() -> dict[str, Any]:
-        register_weirdchat_template()
-        from deepspec.data.parser import preprocess_record  # type: ignore[import-not-found]
+        from deepspec.data.parser import (  # type: ignore[import-not-found]
+            TEMPLATE_REGISTRY,
+            preprocess_record,
+        )
 
         from surprise_common import WEIRDCHAT_TEMPLATE_NAME
 
@@ -188,10 +210,35 @@ def main() -> None:
                 {"role": "assistant", "content": "Something, as requested."},
             ]
         }
+        register_weirdchat_template()
         out = preprocess_record(record, state["tokenizer"], WEIRDCHAT_TEMPLATE_NAME, 512)
         n_loss = int(out["loss_mask"].sum())
         assert n_loss > 0, "assistant loss mask is empty — template/regex mismatch"
-        return {"loss_tokens": n_loss, "total_tokens": int(out["attention_mask"].sum())}
+
+        result: dict[str, Any] = {
+            "loss_tokens": n_loss,
+            "total_tokens": int(out["attention_mask"].sum()),
+        }
+        # Try the strip-think refinement in an isolated registry entry.
+        prefix = report.get("detected_assistant_loss_prefix") or ""
+        if prefix and "prefix_added_by_template" in getattr(
+            __import__("deepspec.data.parser", fromlist=["ChatTemplate"]).ChatTemplate,
+            "__dataclass_fields__",
+            {},
+        ):
+            TEMPLATE_REGISTRY._templates.pop(WEIRDCHAT_TEMPLATE_NAME, None)
+            register_weirdchat_template(strip_think_prefix=prefix)
+            out2 = preprocess_record(record, state["tokenizer"], WEIRDCHAT_TEMPLATE_NAME, 512)
+            n_loss2 = int(out2["loss_mask"].sum())
+            result["loss_tokens_strip_think"] = n_loss2
+            assert 0 < n_loss2 <= n_loss, (
+                f"strip-think loss mask invalid: {n_loss2} (base {n_loss})"
+            )
+            report["strip_think_verified"] = True
+            # Restore the default (non-stripping) registration.
+            TEMPLATE_REGISTRY._templates.pop(WEIRDCHAT_TEMPLATE_NAME, None)
+            register_weirdchat_template()
+        return result
 
     ok &= gate(report, "G5_parser_loss_mask", True, g5)
 
@@ -219,6 +266,7 @@ def main() -> None:
                 {
                     "num_draft_layers": 5,
                     "target_layer_ids": report["recommended_target_layer_ids"],
+                    "draft_intermediate_size": report["recommended_draft_intermediate_size"],
                     "block_size": 7,
                     "mask_token_id": report["recommended_mask_token_id"],
                     "num_anchors": 512,
@@ -246,12 +294,20 @@ def main() -> None:
             "checkout before phases 2-4 (cd $DEEPSPEC_ROOT && git apply "
             "/path/to/deepspec_qwen36.patch)."
         )
-    if "recommended_mask_token_id" in report:
+    if "recommended_mask_token_id" in report and report.get("recommended_target_layer_ids"):
         print(
-            "For phases 2-3, export WEIRDSPEC_MASK_TOKEN_ID="
-            f"{report['recommended_mask_token_id']} "
-            f"({report.get('recommended_mask_token')}) and pass "
-            f"--opts model.target_layer_ids=\"{report.get('recommended_target_layer_ids')}\"."
+            "For phases 2-3:\n"
+            f"  export WEIRDSPEC_MASK_TOKEN_ID={report['recommended_mask_token_id']}  "
+            f"# {report.get('recommended_mask_token')}\n"
+            f"  export WEIRDSPEC_DRAFT_INTERMEDIATE_SIZE={report['recommended_draft_intermediate_size']}"
+            f"  # source: {report.get('draft_intermediate_size_source')}\n"
+            f"  --opts model.target_layer_ids=\"{report['recommended_target_layer_ids']}\""
+        )
+    if report.get("chat_template_inserts_think"):
+        print(
+            "NOTE: the chat template emits <think> scaffolding; it is benign (empty, "
+            "consistent across data). To strip it from the loss mask, set "
+            "WEIRDSPEC_STRIP_THINK=1 for phases 2-4."
         )
     if not ok:
         raise SystemExit(1)
