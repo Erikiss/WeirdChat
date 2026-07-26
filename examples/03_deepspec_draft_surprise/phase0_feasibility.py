@@ -22,14 +22,12 @@ from typing import Any, Callable
 
 from surprise_common import (
     DEFAULT_TARGET_MODEL,
+    pick_mask_token,
     recommend_target_layer_ids,
     register_weirdchat_template,
     resolve_deepspec_root,
+    unwrap_text_config,
 )
-
-# DeepSpec's shipped Qwen configs use this id (an unused Qwen special token) as
-# the draft mask token. Gate G3 verifies it exists in the 3.6 tokenizer.
-CANDIDATE_MASK_TOKEN_ID = 151669
 
 
 def gate(report: dict[str, Any], name: str, hard: bool, fn: Callable[[], dict[str, Any]]) -> bool:
@@ -74,9 +72,12 @@ def main() -> None:
 
     ok &= gate(report, "G1_autoconfig", True, g1)
 
-    # G2: the config carries every field DeepSpec's dense draft build needs.
+    # G2: the (possibly text_config-nested) config carries every field
+    # DeepSpec's dense draft build needs.
     def g2() -> dict[str, Any]:
-        cfg = state["config"]
+        cfg, nesting = unwrap_text_config(state["config"])
+        state["effective_config"] = cfg
+        report["config_nesting"] = nesting
         required = [
             "num_hidden_layers",
             "hidden_size",
@@ -87,7 +88,9 @@ def main() -> None:
             "vocab_size",
         ]
         missing = [f for f in required if getattr(cfg, f, None) is None]
-        assert not missing, f"target config lacks fields needed by the dense draft: {missing}"
+        assert not missing, (
+            f"target config (nesting={nesting}) lacks fields needed by the dense draft: {missing}"
+        )
         num_layers = int(cfg.num_hidden_layers)
         rec = recommend_target_layer_ids(num_layers)
         report["num_hidden_layers"] = num_layers
@@ -98,7 +101,10 @@ def main() -> None:
             for f in ("num_experts", "num_routed_experts", "moe_intermediate_size")
         )
         report["target_is_moe"] = is_moe
+        if nesting is not None:
+            report["needs_deepspec_patch"] = True
         return {
+            "config_nesting": nesting,
             "num_hidden_layers": num_layers,
             "hidden_size": int(cfg.hidden_size),
             "recommended_target_layer_ids": rec,
@@ -107,27 +113,41 @@ def main() -> None:
 
     ok &= gate(report, "G2_draft_config_fields", True, g2)
 
-    # G3: tokenizer loads and the candidate mask token is a real special token.
+    # G3: tokenizer loads and an unused special token can serve as the draft
+    # mask token (DeepSpec's Qwen3 default 151669 no longer exists in 3.6).
     def g3() -> dict[str, Any]:
         from transformers import AutoTokenizer
 
         tok = AutoTokenizer.from_pretrained(args.target)
         state["tokenizer"] = tok
-        piece = tok.convert_ids_to_tokens(CANDIDATE_MASK_TOKEN_ID)
-        assert piece is not None, f"token id {CANDIDATE_MASK_TOKEN_ID} not in vocab"
-        looks_special = str(piece).startswith("<|")
-        report["mask_token_id"] = CANDIDATE_MASK_TOKEN_ID
-        report["mask_token_piece"] = str(piece)
-        assert looks_special, (
-            f"id {CANDIDATE_MASK_TOKEN_ID} decodes to {piece!r}, which does not look like an "
-            "unused special token — pick a different mask_token_id for the config"
+        specials = {
+            str(added): int(idx)
+            for idx, added in tok.added_tokens_decoder.items()
+            if getattr(added, "special", False)
+        }
+        sample = tok.apply_chat_template(
+            [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ho"}],
+            tokenize=False,
+            add_generation_prompt=True,
         )
-        return {"mask_token_id": CANDIDATE_MASK_TOKEN_ID, "piece": str(piece)}
+        reserved = {t for t in specials if t in sample}
+        for role_token in (tok.eos_token, tok.bos_token, tok.pad_token, tok.unk_token):
+            if role_token:
+                reserved.add(str(role_token))
+        name, token_id = pick_mask_token(specials, reserved)
+        report["recommended_mask_token"] = name
+        report["recommended_mask_token_id"] = token_id
+        return {
+            "recommended_mask_token": name,
+            "recommended_mask_token_id": token_id,
+            "n_special_tokens": len(specials),
+        }
 
     ok &= gate(report, "G3_mask_token", True, g3)
 
     # G4: chat-template rendering matches the WeirdChat protocol: no injected
-    # system prompt, no <think> blocks, ChatML assistant headers present.
+    # system prompt, no <think> blocks (retrying with enable_thinking=False —
+    # the patched parser passes that flag through), ChatML headers present.
     def g4() -> dict[str, Any]:
         tok = state["tokenizer"]
         convo = [
@@ -136,9 +156,21 @@ def main() -> None:
         ]
         text = tok.apply_chat_template(convo, tokenize=False, add_generation_prompt=False)
         assert "You are a helpful assistant" not in text, "template injects a system prompt"
-        assert "<think>" not in text, "template inserts think blocks into plain transcripts"
+        needs_flag = "<think>" in text
+        if needs_flag:
+            text = tok.apply_chat_template(
+                convo,
+                tokenize=False,
+                add_generation_prompt=False,
+                enable_thinking=False,
+            )
+            assert "<think>" not in text, (
+                "template inserts think blocks even with enable_thinking=False"
+            )
+            report["requires_enable_thinking_false"] = True
+            report["needs_deepspec_patch"] = True
         assert "<|im_start|>assistant" in text, "expected ChatML assistant header"
-        return {"rendered_chars": len(text)}
+        return {"rendered_chars": len(text), "requires_enable_thinking_false": needs_flag}
 
     ok &= gate(report, "G4_chat_template", True, g4)
 
@@ -163,7 +195,9 @@ def main() -> None:
 
     ok &= gate(report, "G5_parser_loss_mask", True, g5)
 
-    # G6 (--deep): meta-device instantiation of target and draft.
+    # G6 (--deep): meta-device instantiation of target and draft. Exercises the
+    # patched build_draft_config path — apply deepspec_qwen36.patch first when
+    # the target config is nested.
     if args.deep:
 
         def g6() -> dict[str, Any]:
@@ -186,7 +220,7 @@ def main() -> None:
                     "num_draft_layers": 5,
                     "target_layer_ids": report["recommended_target_layer_ids"],
                     "block_size": 7,
-                    "mask_token_id": CANDIDATE_MASK_TOKEN_ID,
+                    "mask_token_id": report["recommended_mask_token_id"],
                     "num_anchors": 512,
                     "markov_rank": 256,
                     "markov_head_type": "vanilla",
@@ -206,6 +240,19 @@ def main() -> None:
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
     print(f"\nReport written to {args.output}. All hard gates passed: {ok}")
+    if report.get("needs_deepspec_patch"):
+        print(
+            "NOTE: this target needs deepspec_qwen36.patch applied to the DeepSpec "
+            "checkout before phases 2-4 (cd $DEEPSPEC_ROOT && git apply "
+            "/path/to/deepspec_qwen36.patch)."
+        )
+    if "recommended_mask_token_id" in report:
+        print(
+            "For phases 2-3, export WEIRDSPEC_MASK_TOKEN_ID="
+            f"{report['recommended_mask_token_id']} "
+            f"({report.get('recommended_mask_token')}) and pass "
+            f"--opts model.target_layer_ids=\"{report.get('recommended_target_layer_ids')}\"."
+        )
     if not ok:
         raise SystemExit(1)
 

@@ -49,16 +49,31 @@ from surprise_common import (
 )
 
 
+def resolve_backbone(target_model):
+    """Find the decoder stack, including nested wrappers (Qwen3.6 MoE, Gemma4)."""
+    for holder in (target_model, getattr(target_model, "model", None)):
+        language_model = getattr(holder, "language_model", None) if holder else None
+        if language_model is not None and hasattr(language_model, "layers"):
+            return language_model
+    backbone = getattr(target_model, "model", target_model)
+    assert hasattr(backbone, "layers"), (
+        f"cannot locate decoder layers on {type(target_model).__name__}"
+    )
+    return backbone
+
+
 def capture_target_states(target_model, input_ids, attention_mask, layer_ids, out_device):
     """Forward the target once, capturing hidden states at ``layer_ids``.
 
     Mirrors DeepSpec's ``prepare_target_cache.run_target_forward_with_hooks``
     but moves captures to ``out_device`` so it also works under device_map
-    sharding of a large target.
+    sharding of a large target, and resolves nested backbones. The final
+    hidden state is taken from the backbone's closing norm hook when the
+    wrapper's output lacks ``last_hidden_state``.
     """
     import torch
 
-    backbone = getattr(target_model, "model", target_model)
+    backbone = resolve_backbone(target_model)
     captured: dict[int, Any] = {}
     handles = []
 
@@ -69,12 +84,15 @@ def capture_target_states(target_model, input_ids, attention_mask, layer_ids, ou
 
         return hook
 
+    norm_key = 10**9  # sentinel key for the final-norm capture
     try:
         if -1 in layer_ids:
             handles.append(backbone.embed_tokens.register_forward_hook(make_hook(-1)))
         for layer_id in layer_ids:
             if layer_id >= 0:
                 handles.append(backbone.layers[layer_id].register_forward_hook(make_hook(layer_id)))
+        if hasattr(backbone, "norm"):
+            handles.append(backbone.norm.register_forward_hook(make_hook(norm_key)))
         with torch.no_grad():
             out = target_model(
                 input_ids=input_ids,
@@ -82,7 +100,15 @@ def capture_target_states(target_model, input_ids, attention_mask, layer_ids, ou
                 output_hidden_states=False,
                 use_cache=False,
             )
-            last_hidden = out.last_hidden_state.detach().to(out_device)
+            last_hidden = getattr(out, "last_hidden_state", None)
+            if last_hidden is not None:
+                last_hidden = last_hidden.detach().to(out_device)
+            else:
+                assert norm_key in captured, (
+                    "target output has no last_hidden_state and the backbone has no "
+                    "final norm to hook"
+                )
+                last_hidden = captured[norm_key]
             stacked = torch.cat([captured[i] for i in layer_ids], dim=-1)
     finally:
         for h in handles:
@@ -210,7 +236,18 @@ def main() -> None:
     target_kwargs: dict[str, Any] = {"dtype": torch.bfloat16, "attn_implementation": "sdpa"}
     if args.target_device_map:
         target_kwargs["device_map"] = args.target_device_map
-    target_model = AutoModel.from_pretrained(args.target, **target_kwargs)
+    try:
+        target_model = AutoModel.from_pretrained(args.target, **target_kwargs)
+    except ValueError:
+        # Architectures outside the AutoModel mapping (e.g. the qwen3.6 MoE
+        # *ForConditionalGeneration wrapper) load via their concrete class.
+        import transformers as transformers_module
+        from transformers import AutoConfig
+
+        architecture = str(AutoConfig.from_pretrained(args.target).architectures[0])
+        target_model = getattr(transformers_module, architecture).from_pretrained(
+            args.target, **target_kwargs
+        )
     if not args.target_device_map:
         target_model = target_model.to(device)
     target_model = target_model.eval()

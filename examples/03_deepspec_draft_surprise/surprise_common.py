@@ -50,7 +50,13 @@ def resolve_deepspec_root(cli_value: str | None = None) -> str:
 
 
 def register_weirdchat_template() -> None:
-    """Idempotently register the system-prompt-free Qwen template in DeepSpec."""
+    """Idempotently register the system-prompt-free Qwen template in DeepSpec.
+
+    With `deepspec_qwen36.patch` applied, the template also forces
+    ``enable_thinking=False`` at render time (the qwen3.6 chat template
+    otherwise inserts ``<think>`` blocks into plain transcripts). On an
+    unpatched DeepSpec the field does not exist and is skipped.
+    """
     from deepspec.data.parser import TEMPLATE_REGISTRY, ChatTemplate  # type: ignore[import-not-found]
 
     try:
@@ -58,6 +64,9 @@ def register_weirdchat_template() -> None:
         return
     except KeyError:
         pass
+    kwargs: dict[str, Any] = {}
+    if "enable_thinking" in getattr(ChatTemplate, "__dataclass_fields__", {}):
+        kwargs["enable_thinking"] = False
     TEMPLATE_REGISTRY.register(
         WEIRDCHAT_TEMPLATE_NAME,
         ChatTemplate(
@@ -65,8 +74,45 @@ def register_weirdchat_template() -> None:
             user_header="<|im_start|>user\n",
             system_prompt=None,
             end_of_turn_token="<|im_end|>\n",
+            **kwargs,
         ),
     )
+
+
+def unwrap_text_config(config: Any) -> tuple[Any, str | None]:
+    """Resolve nested wrapper configs (e.g. Qwen3.5/3.6 MoE, Gemma4).
+
+    Returns ``(effective_config, nesting)`` where nesting is ``"text_config"``
+    when the transformer geometry lives one level down, else ``None``.
+    """
+    text_config = getattr(config, "text_config", None)
+    if text_config is not None and getattr(config, "num_hidden_layers", None) is None:
+        return text_config, "text_config"
+    return config, None
+
+
+# Preference order for repurposing a special token as the draft mask token
+# (DeepSpec's Qwen3 configs use `<|fim_pad|>` = 151669, which no longer exists
+# in the qwen3.6 tokenizer).
+_MASK_TOKEN_KEYWORDS = ("fim_pad", "mask", "pad", "unused", "reserved", "fim")
+
+
+def pick_mask_token(special_tokens: dict[str, int], reserved: set[str]) -> tuple[str, int]:
+    """Pick an unused special token to serve as the draft mask token.
+
+    ``special_tokens`` maps token string -> id; ``reserved`` holds tokens the
+    chat template (or eos/bos/pad roles) actually use and which therefore must
+    not be repurposed.
+    """
+    candidates = {t: i for t, i in special_tokens.items() if t not in reserved}
+    if not candidates:
+        raise ValueError("tokenizer has no unused special token to repurpose as mask token")
+    for keyword in _MASK_TOKEN_KEYWORDS:
+        matches = sorted((t for t in candidates if keyword in t.lower()), key=candidates.get)
+        if matches:
+            return matches[0], candidates[matches[0]]
+    token = sorted(candidates, key=candidates.get)[0]
+    return token, candidates[token]
 
 
 def recommend_target_layer_ids(num_target_layers: int, k: int = 5) -> list[int]:

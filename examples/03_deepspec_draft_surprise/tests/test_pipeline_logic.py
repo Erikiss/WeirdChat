@@ -18,9 +18,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from surprise_common import (  # noqa: E402
     messages_to_conversations,
+    pick_mask_token,
     recommend_target_layer_ids,
     spearman,
     summarize_token_scores,
+    unwrap_text_config,
 )
 from phase1_export_weirdchat import export_rows  # noqa: E402
 from phase4_score_surprise import anchor_candidates  # noqa: E402
@@ -176,3 +178,38 @@ def test_null_stats_and_offset_curve():
     assert mean == pytest.approx(1.0)
     assert std == pytest.approx(2.0**0.5)
     assert offset_curve(baseline) == [1.0, 2.0]
+
+
+def test_unwrap_text_config_nested_and_flat():
+    # Nested wrapper config (qwen3_5_moe style): geometry lives in text_config.
+    inner = SimpleNamespace(num_hidden_layers=48, hidden_size=4096)
+    nested = SimpleNamespace(text_config=inner, num_hidden_layers=None)
+    cfg, nesting = unwrap_text_config(nested)
+    assert cfg is inner and nesting == "text_config"
+    # Flat config stays as-is, even if a text_config attribute exists.
+    flat = SimpleNamespace(num_hidden_layers=36, text_config=None)
+    cfg, nesting = unwrap_text_config(flat)
+    assert cfg is flat and nesting is None
+    both = SimpleNamespace(num_hidden_layers=36, text_config=inner)
+    cfg, nesting = unwrap_text_config(both)
+    assert cfg is both and nesting is None
+
+
+def test_pick_mask_token_prefers_pad_like_and_skips_reserved():
+    specials = {
+        "<|im_start|>": 151644,
+        "<|im_end|>": 151645,
+        "<|endoftext|>": 151643,
+        "<|fim_pad|>": 151662,
+        "<|quad_start|>": 151650,
+    }
+    reserved = {"<|im_start|>", "<|im_end|>", "<|endoftext|>"}
+    name, token_id = pick_mask_token(specials, reserved)
+    assert (name, token_id) == ("<|fim_pad|>", 151662)
+    # Without a pad-like candidate, any unused special is acceptable.
+    name2, _ = pick_mask_token(
+        {"<|im_start|>": 1, "<|quad_start|>": 2}, {"<|im_start|>"}
+    )
+    assert name2 == "<|quad_start|>"
+    with pytest.raises(ValueError):
+        pick_mask_token({"<|im_start|>": 1}, {"<|im_start|>"})

@@ -46,7 +46,10 @@ model = dict(
     # Placeholder for a 48-layer target — override with phase 0's
     # recommended_target_layer_ids via --opts.
     target_layer_ids=[1, 12, 23, 34, 45],
-    mask_token_id=151669,
+    # DeepSpec's Qwen3 default (151669, `<|fim_pad|>`) is NOT a special token
+    # in the qwen3.6 tokenizer — set this from phase 0's
+    # recommended_mask_token_id.
+    mask_token_id=int(os.environ.get("WEIRDSPEC_MASK_TOKEN_ID", "151669")),
     num_anchors=512,
 
     ## markov head

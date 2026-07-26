@@ -30,9 +30,14 @@ Secrets.
 ## Prerequisites
 
 - A DeepSpec checkout (`DEEPSPEC_ROOT`) with its `requirements.txt` installed.
-  Nothing in DeepSpec is modified: the extra chat template and the new target
-  config are injected from this directory via DeepSpec's `config_path`
-  mechanism.
+  The chat template and target config are injected from this directory via
+  DeepSpec's `config_path` mechanism; for this target DeepSpec additionally
+  needs a small patch (phase 0 confirmed the qwen3.6 MoE wrapper nests its
+  config and the template needs `enable_thinking=False`):
+
+  ```bash
+  cd $DEEPSPEC_ROOT && git apply /path/to/examples/03_deepspec_draft_surprise/deepspec_qwen36.patch
+  ```
 - The WeirdChat environment (`uv sync` at the repo root) for phases 1 and 5.
 - GPUs for phases 1b–4 (the target is a ~35B-A3B MoE; DeepSpec's defaults
   assume one 8-GPU node). Phase 0 and 5 are CPU-cheap.
@@ -56,13 +61,20 @@ python phase0_feasibility.py --deepspec-root $DEEPSPEC_ROOT [--deep]
 ```
 
 Hard gates: the architecture loads via `AutoConfig`/`AutoModel` under
-DeepSpec's pinned `transformers`; the config carries every field the dense
-draft build needs; mask token `151669` is a real unused special token in the
-3.6 tokenizer; the chat template injects **no** system prompt and no `<think>`
-blocks (the WeirdChat sampling protocol); DeepSpec's parser produces a
-non-empty assistant loss mask with the registered `qwen_weirdchat` template.
-The report includes `recommended_target_layer_ids` — pass them to phases 2–3
-via `--opts model.target_layer_ids="[...]"`.
+DeepSpec's pinned `transformers`; the (possibly `text_config`-nested) config
+carries every field the dense draft build needs; an unused special token is
+*discovered* to serve as the draft mask token (DeepSpec's Qwen3 default
+`151669` is not special in the 3.6 tokenizer); the chat template injects
+**no** system prompt and renders without `<think>` blocks (retrying with
+`enable_thinking=False`); DeepSpec's parser produces a non-empty assistant
+loss mask with the registered `qwen_weirdchat` template.
+
+Verified findings for `Qwen/Qwen3.6-35B-A3B`: `model_type=qwen3_5_moe`,
+architecture `Qwen3_5MoeForConditionalGeneration` with a nested `text_config`
+— hence `deepspec_qwen36.patch`. The report emits
+`recommended_target_layer_ids` (pass via `--opts model.target_layer_ids`) and
+`recommended_mask_token_id` (export as `WEIRDSPEC_MASK_TOKEN_ID` before
+phases 2–3).
 
 ### Phase 1 — data
 
@@ -79,6 +91,7 @@ DEEPSPEC_ROOT=... TARGET_MODEL=Qwen/Qwen3.6-35B-A3B \
 ### Phases 2–3 — cache and draft training (inside `$DEEPSPEC_ROOT`)
 
 ```bash
+export WEIRDSPEC_MASK_TOKEN_ID=...   # recommended_mask_token_id from phase 0
 python scripts/data/prepare_target_cache.py \
     --config /path/to/examples/03_deepspec_draft_surprise/dspark_qwen36_35b_a3b.py \
     --train-data-path /path/to/data/baseline_train.jsonl \
@@ -132,9 +145,11 @@ block-offset lookahead-decay curves, and token traces of the top patterns with
   HF checkpoint. That is the same replication gap WeirdChat itself documents
   via `openrouter_replication` — keep it in mind when reading small effects.
 - **MoE support is gated, not assumed.** DeepSpec ships dense Qwen3 targets
-  (4B/8B/14B); the 35B-A3B MoE path is exactly what phase 0 verifies (hidden
+  (4B/8B/14B). Phase 0 confirmed the 35B-A3B target loads but needs
+  `deepspec_qwen36.patch` (nested `text_config`, wrapper architecture,
+  `enable_thinking=False` rendering) plus a rediscovered mask token. Hidden
   states are captured architecture-agnostically via forward hooks, and the
-  draft itself is always dense). No released DeepSpec checkpoint covers this
+  draft itself is always dense. No released DeepSpec checkpoint covers this
   target, so the draft must be trained (phases 2–3).
 - **`nll_target` is a proxy** from the draft's lm-head over the target's last
   hidden state (the quantity DSpark distills against), not the target's own
