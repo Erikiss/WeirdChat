@@ -147,8 +147,57 @@ index d5b7c61..542d92c 100644
          target_embed_tokens = target_model.get_input_embeddings()
          target_lm_head = target_model.get_output_embeddings()
          assert (target_lm_head is not None) and (target_embed_tokens is not None)
+diff --git a/scripts/data/download_and_split.py b/scripts/data/download_and_split.py
+index a3a0fc8..c61fe65 100644
+--- a/scripts/data/download_and_split.py
++++ b/scripts/data/download_and_split.py
+@@ -152,25 +152,42 @@ def user_turns(row: dict) -> list[str]:
+ def write_train_jsonl(dataset, output_path: Path) -> int:
+     output_path.parent.mkdir(parents=True, exist_ok=True)
+     count = 0
++    skipped = 0
+     with output_path.open("w", encoding="utf-8") as handle:
+         for row_number, row in enumerate(dataset, start=1):
+             converted = normalize_conversations(row)
+-            validate_conversations(converted, row_number)
++            try:
++                validate_conversations(converted, row_number)
++            except ValueError:
++                # Public datasets contain occasional malformed rows (empty
++                # content, non-user first turn). Skip them instead of aborting
++                # the whole split.
++                skipped += 1
++                continue
+             handle.write(json.dumps(converted, ensure_ascii=False) + "\n")
+             count += 1
++    if skipped:
++        print(f"skipped {skipped} malformed train rows")
+     return count
+ 
+ 
+ def write_eval_jsonl(dataset, output_path: Path) -> int:
+     output_path.parent.mkdir(parents=True, exist_ok=True)
+     count = 0
++    skipped = 0
+     with output_path.open("w", encoding="utf-8") as handle:
+         for row_number, row in enumerate(dataset, start=1):
+             converted = normalize_conversations(row)
+-            validate_conversations(converted, row_number)
++            try:
++                validate_conversations(converted, row_number)
++            except ValueError:
++                skipped += 1
++                continue
+             turns = user_turns(converted)
+             handle.write(json.dumps({"turns": turns}, ensure_ascii=False) + "\n")
+             count += 1
++    if skipped:
++        print(f"skipped {skipped} malformed eval rows")
+     return count
+ 
+ 
 diff --git a/scripts/data/prepare_target_cache.py b/scripts/data/prepare_target_cache.py
-index cae8c0c..a06139c 100644
+index cae8c0c..96ea2f9 100644
 --- a/scripts/data/prepare_target_cache.py
 +++ b/scripts/data/prepare_target_cache.py
 @@ -52,6 +52,33 @@ class TargetForwardResult:
@@ -207,7 +256,38 @@ index cae8c0c..a06139c 100644
  
  
  def _get_hook_tensor(output):
-@@ -251,11 +283,32 @@ def main(local_rank: int):
+@@ -86,6 +118,7 @@ def run_target_forward_with_hooks(
+     input_ids: torch.Tensor,
+     attention_mask: torch.Tensor,
+     target_layer_ids,
++    out_device=None,
+ ):
+     backbone = _get_target_backbone(target_model)
+     layer_modules = backbone.layers
+@@ -95,7 +128,12 @@ def run_target_forward_with_hooks(
+ 
+     def capture_layer(layer_id: int):
+         def hook(_module, _inputs, output):
+-            captured_hidden_states[layer_id] = _get_hook_tensor(output).detach()
++            tensor = _get_hook_tensor(output).detach()
++            # Under device_map the layer may live on CPU/another GPU; move the
++            # capture to a single device so the later torch.cat is valid.
++            if out_device is not None:
++                tensor = tensor.to(out_device)
++            captured_hidden_states[layer_id] = tensor
+ 
+         return hook
+ 
+@@ -119,6 +157,8 @@ def run_target_forward_with_hooks(
+                 use_cache=False,
+             )
+             target_last_hidden_states = target_output.last_hidden_state.detach()
++            if out_device is not None:
++                target_last_hidden_states = target_last_hidden_states.to(out_device)
+             target_hidden_states = torch.cat(
+                 [captured_hidden_states[layer_id] for layer_id in target_layer_ids],
+                 dim=-1,
+@@ -251,11 +291,40 @@ def main(local_rank: int):
      tokenizer = AutoTokenizer.from_pretrained(
          config.model.target_model_name_or_path,
      )
@@ -226,6 +306,12 @@ index cae8c0c..a06139c 100644
 +        _load_kwargs["dtype"] = "auto"
 +    else:
 +        _load_kwargs["dtype"] = torch.bfloat16
++    # WEIRDSPEC_DEVICE_MAP lets a large target span GPU + CPU RAM (e.g. "auto")
++    # so a 35B model fits on a single small GPU by offloading layers. Hidden
++    # states are then gathered onto `device` (the local GPU) via out_device.
++    _device_map = os.environ.get("WEIRDSPEC_DEVICE_MAP") or None
++    if _device_map is not None:
++        _load_kwargs["device_map"] = _device_map
 +    try:
 +        target_model = AutoModel.from_pretrained(
 +            config.model.target_model_name_or_path,
@@ -241,7 +327,17 @@ index cae8c0c..a06139c 100644
 +            config.model.target_model_name_or_path,
 +            **_load_kwargs,
 +        )
-+    target_model = target_model.to(device=device).eval()
++    if _device_map is None:
++        target_model = target_model.to(device=device)
++    target_model = target_model.eval()
      target_hidden_size = _get_target_hidden_size(target_model)
      train_collator = ConversationCollator(
          tokenizer=tokenizer,
+@@ -308,6 +377,7 @@ def main(local_rank: int):
+                     input_ids=batch["input_ids"],
+                     attention_mask=batch["attention_mask"],
+                     target_layer_ids=target_layer_ids,
++                    out_device=device,
+                 )
+                 seq_lens = batch["attention_mask"].sum(dim=1).tolist()
+                 for sample_idx_in_batch, seq_len in enumerate(seq_lens):

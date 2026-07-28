@@ -39,6 +39,13 @@ Trade-offs: a weaker draft than a full multi-GPU run, and baseline texts come
 from OpenRouter's provider quantization while hidden states come from FP8 —
 the same replication gap WeirdChat documents.
 
+Colab hands out either a 40 GB or an 80 GB A100. The notebook reads the VRAM
+from phase 0 and adapts automatically: on a 40 GB card the 35B target offloads
+to CPU RAM (`WEIRDSPEC_DEVICE_MAP=auto`, cache batch 1 — slower but fits); on
+80 GB it runs fully on-GPU (batch 4). `prepare_target_cache.py` gathers the
+hooked hidden states onto the local GPU (`out_device`) so the offloaded
+forward still produces a single-device cache.
+
 ## Prerequisites
 
 - A DeepSpec checkout (`DEEPSPEC_ROOT`) with its `requirements.txt` installed.
