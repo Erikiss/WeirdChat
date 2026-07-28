@@ -14,6 +14,7 @@ are injected from here, which DeepSpec's ``config_path`` mechanism supports.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -136,17 +137,24 @@ def resolve_draft_intermediate_size(config: Any) -> tuple[int, str]:
     """Pick a dense FFN width for the draft, returning (size, source).
 
     The DSpark draft is always dense, so it needs a scalar ``intermediate_size``.
-    Dense targets carry one; MoE targets (no ``intermediate_size``) fall back to
-    the per-expert ``moe_intermediate_size``, else a Qwen-style 8/3·hidden width.
+    Dense targets carry one. For MoE targets the per-expert
+    ``moe_intermediate_size`` alone can be tiny (fine-grained experts, e.g. 512
+    on qwen3.6-35b-a3b) — a draft that thin would be crippled. Use the *active*
+    capacity (per-expert width x experts per token) when it is at least the
+    conventional dense 8/3·hidden width, else fall back to that dense width.
     """
     dense = getattr(config, "intermediate_size", None)
     if dense is not None:
         return int(dense), "intermediate_size"
-    moe = getattr(config, "moe_intermediate_size", None)
-    if moe is not None:
-        return int(moe), "moe_intermediate_size"
     hidden = int(config.hidden_size)
-    return (round(hidden * 8 / 3 / 128) * 128), "derived_from_hidden_size"
+    derived = round(hidden * 8 / 3 / 128) * 128
+    moe = getattr(config, "moe_intermediate_size", None)
+    top_k = getattr(config, "num_experts_per_tok", None)
+    if moe is not None and top_k:
+        active = int(moe) * int(top_k)
+        if active >= derived:
+            return active, "moe_active_capacity"
+    return derived, "derived_from_hidden_size"
 
 
 def pick_mask_token(special_tokens: dict[str, int], reserved: set[str]) -> tuple[str, int]:
@@ -211,6 +219,34 @@ def write_jsonl(path: str, rows: list[dict[str, Any]]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def is_heldout_line(line: str, frac: float) -> bool:
+    """Deterministic content-hash split (same rule as phase1_baseline.sh)."""
+    digest = hashlib.sha256(line.encode()).digest()
+    return digest[0] / 255.0 < frac
+
+
+def prepare_regen_conversations(conversations: Any) -> list[dict[str, str]] | None:
+    """Validate a source row for WeirdChat-protocol regeneration.
+
+    Returns the user turns (assistant turns dropped — they get regenerated),
+    or None if the row cannot be used under the protocol: rows with system
+    turns are rejected entirely (WeirdChat sampled without a system prompt),
+    as are rows not starting with a user turn.
+    """
+    if not isinstance(conversations, list) or not conversations:
+        return None
+    if any(m.get("role") == "system" for m in conversations):
+        return None
+    if conversations[0].get("role") != "user":
+        return None
+    user_turns = [
+        {"role": "user", "content": str(m.get("content", ""))}
+        for m in conversations
+        if m.get("role") == "user"
+    ]
+    return user_turns or None
 
 
 def read_jsonl(path: str) -> list[dict[str, Any]]:
