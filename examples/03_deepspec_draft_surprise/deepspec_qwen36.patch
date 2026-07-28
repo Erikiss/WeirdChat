@@ -39,7 +39,7 @@ index e7828dc..91164af 100644
  
          render_messages = []
 diff --git a/deepspec/modeling/dspark/qwen3/config.py b/deepspec/modeling/dspark/qwen3/config.py
-index ae71fac..3d76585 100644
+index ae71fac..7abfc46 100644
 --- a/deepspec/modeling/dspark/qwen3/config.py
 +++ b/deepspec/modeling/dspark/qwen3/config.py
 @@ -10,6 +10,11 @@ def build_draft_config(
@@ -54,7 +54,49 @@ index ae71fac..3d76585 100644
      num_target_layers = int(target_config.num_hidden_layers)
      num_draft_layers = int(model_args.num_draft_layers)
      layer_types = ["full_attention"] * num_draft_layers
-@@ -38,6 +43,19 @@ def build_draft_config(
+@@ -34,10 +39,60 @@ def build_draft_config(
+             "markov_head_type must be provided when markov_rank > 0."
+         )
+ 
+-    draft_config = copy.deepcopy(target_config)
++    has_moe_fields = any(
++        getattr(target_config, field, None) is not None
++        for field in ("num_experts", "num_routed_experts", "moe_intermediate_size")
++    )
++    if getattr(target_config, "model_type", None) == "qwen3" and not has_moe_fields:
++        draft_config = copy.deepcopy(target_config)
++    else:
++        # The draft is a plain dense Qwen3 stack. Deepcopying a MoE/wrapper
++        # config would drag expert fields along (num_experts,
++        # experts_implementation, quantization_config, ...), which transformers
++        # rejects on an expert-free architecture — rebuild a clean dense config
++        # from the target's geometry instead.
++        from transformers.models.qwen3 import Qwen3Config
++
++        carried = {}
++        for field in (
++            "hidden_size",
++            "num_attention_heads",
++            "num_key_value_heads",
++            "head_dim",
++            "rms_norm_eps",
++            "vocab_size",
++            "rope_theta",
++            "rope_scaling",
++            "max_position_embeddings",
++            "attention_bias",
++            "attention_dropout",
++            "hidden_act",
++            "initializer_range",
++            "use_cache",
++            "bos_token_id",
++            "eos_token_id",
++            "pad_token_id",
++        ):
++            value = getattr(target_config, field, None)
++            if value is not None:
++                carried[field] = value
++        draft_config = Qwen3Config(**carried)
      draft_config.architectures = ["Qwen3DSparkModel"]
      draft_config.num_target_layers = num_target_layers
      draft_config.num_hidden_layers = num_draft_layers
