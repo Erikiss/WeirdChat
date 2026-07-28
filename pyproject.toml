@@ -41,6 +41,9 @@ packages = ["weirdchat"]
 
 [tool.pyright]
 typeCheckingMode = "strict"
+# The DeepSpec pipeline example depends on torch/deepspec, which are not part
+# of this project's environment.
+exclude = ["examples/03_deepspec_draft_surprise", "**/.venv", "**/__pycache__"]
 
 [tool.black]
 line-length = 100

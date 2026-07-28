@@ -1,0 +1,198 @@
+diff --git a/deepspec/data/parser.py b/deepspec/data/parser.py
+index e7828dc..91164af 100644
+--- a/deepspec/data/parser.py
++++ b/deepspec/data/parser.py
+@@ -13,6 +13,16 @@ class ChatTemplate:
+     system_prompt: str | None
+     end_of_turn_token: str | None
+     assistant_loss_prefix: str | None = None
++    # Passed through to the tokenizer's chat template (None keeps the
++    # template's default). Non-thinking training data needs
++    # enable_thinking=False for templates that otherwise inject <think> blocks.
++    enable_thinking: bool | None = None
++    # Set True when the tokenizer's own chat template already emits the
++    # assistant_loss_prefix (e.g. an empty <think></think> scaffold). Then the
++    # prefix is only stripped from the loss mask, not prepended to content
++    # (which would double it). Gemma4-style templates that need the prefix
++    # injected into content leave this False.
++    prefix_added_by_template: bool = False
+ 
+ 
+ class TemplateRegistry:
+@@ -98,6 +108,7 @@ class GeneralParser:
+             self.tokenizer,
+             render_messages,
+             add_generation_prompt=False,
++            enable_thinking=self.chat_template.enable_thinking,
+         )
+ 
+         encoding = self.tokenizer(
+@@ -144,7 +155,9 @@ class GeneralParser:
+         }
+ 
+     def _prepare_render_messages(self, messages):
+-        if not self.assistant_loss_prefix:
++        if not self.assistant_loss_prefix or self.chat_template.prefix_added_by_template:
++            # Nothing to inject: either no prefix, or the tokenizer template
++            # already emits it (we only strip it from the loss mask later).
+             return messages
+ 
+         render_messages = []
+diff --git a/deepspec/modeling/dspark/qwen3/config.py b/deepspec/modeling/dspark/qwen3/config.py
+index ae71fac..3d76585 100644
+--- a/deepspec/modeling/dspark/qwen3/config.py
++++ b/deepspec/modeling/dspark/qwen3/config.py
+@@ -10,6 +10,11 @@ def build_draft_config(
+     target_config,
+     model_args,
+ ):
++    # Wrapper architectures (e.g. Qwen3.5/3.6 MoE *ForConditionalGeneration)
++    # nest the transformer geometry under `text_config`.
++    text_config = getattr(target_config, "text_config", None)
++    if text_config is not None and getattr(target_config, "num_hidden_layers", None) is None:
++        target_config = text_config
+     num_target_layers = int(target_config.num_hidden_layers)
+     num_draft_layers = int(model_args.num_draft_layers)
+     layer_types = ["full_attention"] * num_draft_layers
+@@ -38,6 +43,19 @@ def build_draft_config(
+     draft_config.architectures = ["Qwen3DSparkModel"]
+     draft_config.num_target_layers = num_target_layers
+     draft_config.num_hidden_layers = num_draft_layers
++    # The DSpark draft is always dense (Qwen3MLP), so it needs a scalar
++    # intermediate_size. MoE targets don't define one — resolve from the
++    # provided draft_intermediate_size, else the per-expert moe_intermediate_size.
++    draft_intermediate_size = getattr(model_args, "draft_intermediate_size", None)
++    if draft_intermediate_size is None:
++        draft_intermediate_size = getattr(target_config, "intermediate_size", None)
++    if draft_intermediate_size is None:
++        draft_intermediate_size = getattr(target_config, "moe_intermediate_size", None)
++    assert draft_intermediate_size is not None, (
++        "target config defines no intermediate_size (MoE target?); set "
++        "model.draft_intermediate_size in the config."
++    )
++    draft_config.intermediate_size = int(draft_intermediate_size)
+     draft_config.block_size = int(model_args.block_size)
+     draft_config.tie_word_embeddings = False
+     draft_config.layer_types = layer_types
+diff --git a/deepspec/trainer/base_trainer.py b/deepspec/trainer/base_trainer.py
+index d5b7c61..542d92c 100644
+--- a/deepspec/trainer/base_trainer.py
++++ b/deepspec/trainer/base_trainer.py
+@@ -266,10 +266,22 @@ class BaseTrainer:
+ 
+         # Training only uses the target checkpoint to initialize frozen draft
+         # embeddings and lm_head weights.
+-        target_model = AutoModelForCausalLM.from_pretrained(
+-            model_args.target_model_name_or_path,
+-            dtype=self.precision_dtype,
+-        ).to(device="cpu").eval()
++        try:
++            target_model = AutoModelForCausalLM.from_pretrained(
++                model_args.target_model_name_or_path,
++                dtype=self.precision_dtype,
++            ).to(device="cpu").eval()
++        except ValueError:
++            # Architectures outside the causal-LM auto-mapping (e.g.
++            # *ForConditionalGeneration wrappers) still expose embeddings and
++            # lm_head through the same accessors on their concrete class.
++            import transformers as transformers_module
++
++            architecture = str(target_config.architectures[0])
++            target_model = getattr(transformers_module, architecture).from_pretrained(
++                model_args.target_model_name_or_path,
++                dtype=self.precision_dtype,
++            ).to(device="cpu").eval()
+         target_embed_tokens = target_model.get_input_embeddings()
+         target_lm_head = target_model.get_output_embeddings()
+         assert (target_lm_head is not None) and (target_embed_tokens is not None)
+diff --git a/scripts/data/prepare_target_cache.py b/scripts/data/prepare_target_cache.py
+index cae8c0c..12ff673 100644
+--- a/scripts/data/prepare_target_cache.py
++++ b/scripts/data/prepare_target_cache.py
+@@ -52,6 +52,33 @@ class TargetForwardResult:
+     target_last_hidden_states: torch.Tensor
+ 
+ 
++def _find_text_backbone(target_model):
++    """Locate the decoder stack (has `.layers` and `.embed_tokens`).
++
++    Handles wrapper architectures (Gemma4, Qwen3.5/3.6 MoE, other
++    *ForConditionalGeneration models) whose text decoder is nested under
++    `.model`, `.language_model`, or `.model.language_model`.
++    """
++    inner = getattr(target_model, "model", None)
++    candidates = [
++        target_model,
++        inner,
++        getattr(inner, "language_model", None),
++        getattr(target_model, "language_model", None),
++        getattr(inner, "model", None),
++    ]
++    for candidate in candidates:
++        if (
++            candidate is not None
++            and hasattr(candidate, "layers")
++            and hasattr(candidate, "embed_tokens")
++        ):
++            return candidate
++    assert False, (
++        f"could not locate a text decoder backbone on {type(target_model).__name__}"
++    )
++
++
+ def _get_target_backbone(target_model):
+     model_type = str(target_model.config.model_type)
+     if model_type in ("gemma4", "gemma4_unified"):
+@@ -60,14 +87,19 @@ def _get_target_backbone(target_model):
+         if hasattr(target_model, "model") and hasattr(target_model.model, "language_model"):
+             return target_model.model.language_model
+         assert False, "Gemma4 target model must expose a text language_model."
+-    return getattr(target_model, "model", target_model)
++    return _find_text_backbone(target_model)
+ 
+ 
+ def _get_target_hidden_size(target_model) -> int:
+     model_type = str(target_model.config.model_type)
+     if model_type in ("gemma4", "gemma4_unified"):
+         return int(target_model.config.text_config.hidden_size)
+-    return int(target_model.config.hidden_size)
++    config = target_model.config
++    if getattr(config, "hidden_size", None) is None:
++        text_config = getattr(config, "text_config", None)
++        assert text_config is not None, "target config exposes no hidden_size"
++        return int(text_config.hidden_size)
++    return int(config.hidden_size)
+ 
+ 
+ def _get_hook_tensor(output):
+@@ -251,11 +283,25 @@ def main(local_rank: int):
+     tokenizer = AutoTokenizer.from_pretrained(
+         config.model.target_model_name_or_path,
+     )
+-    target_model = AutoModel.from_pretrained(
+-        config.model.target_model_name_or_path,
+-        dtype=torch.bfloat16,
+-        attn_implementation="sdpa",
+-    ).to(device=device).eval()
++    try:
++        target_model = AutoModel.from_pretrained(
++            config.model.target_model_name_or_path,
++            dtype=torch.bfloat16,
++            attn_implementation="sdpa",
++        )
++    except ValueError:
++        # Architectures outside the AutoModel mapping (e.g. the qwen3.6 MoE
++        # *ForConditionalGeneration wrapper) load via their concrete class.
++        import transformers as _transformers
++        from transformers import AutoConfig
++
++        _arch = str(AutoConfig.from_pretrained(config.model.target_model_name_or_path).architectures[0])
++        target_model = getattr(_transformers, _arch).from_pretrained(
++            config.model.target_model_name_or_path,
++            dtype=torch.bfloat16,
++            attn_implementation="sdpa",
++        )
++    target_model = target_model.to(device=device).eval()
+     target_hidden_size = _get_target_hidden_size(target_model)
+     train_collator = ConversationCollator(
+         tokenizer=tokenizer,
