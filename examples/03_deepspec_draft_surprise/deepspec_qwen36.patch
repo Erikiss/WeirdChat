@@ -1,8 +1,14 @@
 diff --git a/deepspec/data/parser.py b/deepspec/data/parser.py
-index e7828dc..91164af 100644
+index e7828dc..55d7646 100644
 --- a/deepspec/data/parser.py
 +++ b/deepspec/data/parser.py
-@@ -13,6 +13,16 @@ class ChatTemplate:
+@@ -1,4 +1,5 @@
+ import json
++import os
+ import re
+ import warnings
+ from dataclasses import dataclass
+@@ -13,6 +14,16 @@ class ChatTemplate:
      system_prompt: str | None
      end_of_turn_token: str | None
      assistant_loss_prefix: str | None = None
@@ -19,7 +25,34 @@ index e7828dc..91164af 100644
  
  
  class TemplateRegistry:
-@@ -98,6 +108,7 @@ class GeneralParser:
+@@ -50,6 +61,26 @@ TEMPLATE_REGISTRY.register(
+     ),
+ )
+ 
++# WeirdChat sampling protocol (deepspec_qwen36.patch): Qwen ChatML without an
++# injected system prompt, thinking disabled. Registered at module level so
++# DataLoader worker processes (fresh interpreters under spawn) resolve it too.
++# WEIRDSPEC_STRIP_PREFIX optionally carries a template-emitted scaffold (e.g.
++# an empty <think></think> block) to strip from the assistant loss mask; env
++# vars propagate into workers, keeping their template identical.
++_weirdchat_strip_prefix = os.environ.get("WEIRDSPEC_STRIP_PREFIX") or None
++TEMPLATE_REGISTRY.register(
++    "qwen_weirdchat",
++    ChatTemplate(
++        assistant_header="<|im_start|>assistant\n",
++        user_header="<|im_start|>user\n",
++        system_prompt=None,
++        end_of_turn_token="<|im_end|>\n",
++        assistant_loss_prefix=_weirdchat_strip_prefix,
++        enable_thinking=False,
++        prefix_added_by_template=_weirdchat_strip_prefix is not None,
++    ),
++)
++
+ 
+ class GeneralParser:
+     def __init__(self, tokenizer, chat_template):
+@@ -98,6 +129,7 @@ class GeneralParser:
              self.tokenizer,
              render_messages,
              add_generation_prompt=False,
@@ -27,7 +60,7 @@ index e7828dc..91164af 100644
          )
  
          encoding = self.tokenizer(
-@@ -144,7 +155,9 @@ class GeneralParser:
+@@ -144,7 +176,9 @@ class GeneralParser:
          }
  
      def _prepare_render_messages(self, messages):
