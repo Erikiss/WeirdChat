@@ -116,6 +116,25 @@ def capture_target_states(target_model, input_ids, attention_mask, layer_ids, ou
     return stacked, last_hidden
 
 
+def token_logprobs(logits, token_ids, slice_size: int = 64):
+    """log p(token) per slot without materializing a full fp32 softmax.
+
+    ``logits``: [1, A, B, V] (bf16), ``token_ids``: [1, A, B]. With qwen3.6's
+    ~250k vocabulary a full fp32 softmax costs ~3.5 GB per copy — instead
+    gather the target-token logit and compute the fp32 logsumexp in anchor
+    slices, bounding the transient to a few hundred MB.
+    """
+    import torch
+
+    token_logit = torch.gather(logits, -1, token_ids.unsqueeze(-1)).squeeze(-1).float()
+    lse = torch.empty_like(token_logit)
+    for s in range(0, logits.shape[1], slice_size):
+        lse[:, s : s + slice_size] = torch.logsumexp(
+            logits[:, s : s + slice_size].float(), dim=-1
+        )
+    return token_logit - lse
+
+
 def anchor_candidates(loss_mask: list[int], start: int, end: int) -> list[int]:
     """Valid anchor positions in [start, end]: loss_mask[a] and loss_mask[a+1]."""
     n = len(loss_mask)
@@ -164,15 +183,14 @@ def score_sample(draft_model, input_ids, loss_mask, target_hidden, target_last_h
                 loss_mask=windowed,
                 target_last_hidden_states=target_last_hidden,
             )
-        draft_logp = torch.log_softmax(out.draft_logits.float(), dim=-1)
-        target_logp = torch.log_softmax(out.aligned_target_logits.float(), dim=-1)
-        token_lp_draft = torch.gather(draft_logp, -1, out.target_ids.unsqueeze(-1)).squeeze(-1)
-        token_lp_target = torch.gather(target_logp, -1, out.target_ids.unsqueeze(-1)).squeeze(-1)
+        token_lp_draft = token_logprobs(out.draft_logits, out.target_ids)
+        token_lp_target = token_logprobs(out.aligned_target_logits, out.target_ids)
         conf = (
             torch.sigmoid(out.confidence_pred) if out.confidence_pred is not None else None
         )
         eval_mask = out.eval_mask[0]
         keep = out.block_keep_mask[0]
+        del out  # frees the [A, B, vocab] logit tensors before the next chunk
 
         for i in range(keep_upto):
             if not bool(keep[i]):
@@ -203,7 +221,9 @@ def main() -> None:
     parser.add_argument("--data", required=True, help="JSONL with `conversations` rows")
     parser.add_argument("--output", required=True)
     parser.add_argument("--max-length", type=int, default=4096)
-    parser.add_argument("--anchor-chunk", type=int, default=512)
+    # 128 anchors x block 7 x 250k vocab keeps the logit tensors under ~1 GB;
+    # VRAM is tight because FP8 dequantizes to bf16 (~70 GB) on pre-Hopper GPUs.
+    parser.add_argument("--anchor-chunk", type=int, default=128)
     parser.add_argument("--device", default="cuda:0", help="device for the draft model")
     parser.add_argument(
         "--target-device-map",
@@ -214,6 +234,10 @@ def main() -> None:
     args = parser.parse_args()
 
     resolve_deepspec_root(args.deepspec_root)
+
+    # Reduce fragmentation pressure — the dequantized 35B target leaves little
+    # headroom on an 80 GB card. Must be set before torch initializes CUDA.
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
     import torch
     from transformers import AutoModel, AutoTokenizer
