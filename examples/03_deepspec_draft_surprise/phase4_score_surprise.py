@@ -234,8 +234,15 @@ def main() -> None:
         strip_prefix = detect_assistant_prefix(tokenizer) or None
     register_weirdchat_template(strip_think_prefix=strip_prefix)
 
+    # The teacher-forced scoring reuses the TRAINING forward, which builds a
+    # flex-attention BlockMask — the draft must load with flex attention (the
+    # sdpa default chokes on the BlockMask).
     draft_model = (
-        Qwen3DSparkModel.from_pretrained(args.draft, dtype=torch.bfloat16).to(device).eval()
+        Qwen3DSparkModel.from_pretrained(
+            args.draft, dtype=torch.bfloat16, attn_implementation="flex_attention"
+        )
+        .to(device)
+        .eval()
     )
     block_size = int(draft_model.block_size)
     layer_ids = [int(i) for i in draft_model.target_layer_ids]
