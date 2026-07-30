@@ -170,6 +170,16 @@ null), Spearman correlations against WeirdChat's Elo axes and match rates,
 block-offset lookahead-decay curves, and token traces of the top patterns with
 +3σ/+5σ tokens marked.
 
+### Phase 6 (optional) — latent-state tipping analysis
+
+`phase6_hmm.py` models each transcript's per-token excess sequence as
+emissions of a K-state Gaussian HMM (Baum-Welch, deterministic init; Viterbi
+decoding): latent state = the model's mode (normal vs tipped), transitions =
+the tipping dynamics. Fitted per behavior, with the baseline held-out set as
+control. Yields probabilistic switch points (vs phase 5's argmax peak), dwell
+statistics (absorbing vs flickering weirdness) and per-behavior transition
+matrices. CPU-only, minutes on the full score file; notebook cell 13 runs it.
+
 ## Caveats
 
 - **Checkpoint identity.** WeirdChat's Qwen data was generated from a
