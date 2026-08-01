@@ -1,8 +1,14 @@
 diff --git a/deepspec/data/parser.py b/deepspec/data/parser.py
-index e7828dc..91164af 100644
+index e7828dc..55d7646 100644
 --- a/deepspec/data/parser.py
 +++ b/deepspec/data/parser.py
-@@ -13,6 +13,16 @@ class ChatTemplate:
+@@ -1,4 +1,5 @@
+ import json
++import os
+ import re
+ import warnings
+ from dataclasses import dataclass
+@@ -13,6 +14,16 @@ class ChatTemplate:
      system_prompt: str | None
      end_of_turn_token: str | None
      assistant_loss_prefix: str | None = None
@@ -19,7 +25,34 @@ index e7828dc..91164af 100644
  
  
  class TemplateRegistry:
-@@ -98,6 +108,7 @@ class GeneralParser:
+@@ -50,6 +61,26 @@ TEMPLATE_REGISTRY.register(
+     ),
+ )
+ 
++# WeirdChat sampling protocol (deepspec_qwen36.patch): Qwen ChatML without an
++# injected system prompt, thinking disabled. Registered at module level so
++# DataLoader worker processes (fresh interpreters under spawn) resolve it too.
++# WEIRDSPEC_STRIP_PREFIX optionally carries a template-emitted scaffold (e.g.
++# an empty <think></think> block) to strip from the assistant loss mask; env
++# vars propagate into workers, keeping their template identical.
++_weirdchat_strip_prefix = os.environ.get("WEIRDSPEC_STRIP_PREFIX") or None
++TEMPLATE_REGISTRY.register(
++    "qwen_weirdchat",
++    ChatTemplate(
++        assistant_header="<|im_start|>assistant\n",
++        user_header="<|im_start|>user\n",
++        system_prompt=None,
++        end_of_turn_token="<|im_end|>\n",
++        assistant_loss_prefix=_weirdchat_strip_prefix,
++        enable_thinking=False,
++        prefix_added_by_template=_weirdchat_strip_prefix is not None,
++    ),
++)
++
+ 
+ class GeneralParser:
+     def __init__(self, tokenizer, chat_template):
+@@ -98,6 +129,7 @@ class GeneralParser:
              self.tokenizer,
              render_messages,
              add_generation_prompt=False,
@@ -27,7 +60,7 @@ index e7828dc..91164af 100644
          )
  
          encoding = self.tokenizer(
-@@ -144,7 +155,9 @@ class GeneralParser:
+@@ -144,7 +176,9 @@ class GeneralParser:
          }
  
      def _prepare_render_messages(self, messages):
@@ -39,7 +72,7 @@ index e7828dc..91164af 100644
  
          render_messages = []
 diff --git a/deepspec/modeling/dspark/qwen3/config.py b/deepspec/modeling/dspark/qwen3/config.py
-index ae71fac..3d76585 100644
+index ae71fac..7abfc46 100644
 --- a/deepspec/modeling/dspark/qwen3/config.py
 +++ b/deepspec/modeling/dspark/qwen3/config.py
 @@ -10,6 +10,11 @@ def build_draft_config(
@@ -54,7 +87,49 @@ index ae71fac..3d76585 100644
      num_target_layers = int(target_config.num_hidden_layers)
      num_draft_layers = int(model_args.num_draft_layers)
      layer_types = ["full_attention"] * num_draft_layers
-@@ -38,6 +43,19 @@ def build_draft_config(
+@@ -34,10 +39,60 @@ def build_draft_config(
+             "markov_head_type must be provided when markov_rank > 0."
+         )
+ 
+-    draft_config = copy.deepcopy(target_config)
++    has_moe_fields = any(
++        getattr(target_config, field, None) is not None
++        for field in ("num_experts", "num_routed_experts", "moe_intermediate_size")
++    )
++    if getattr(target_config, "model_type", None) == "qwen3" and not has_moe_fields:
++        draft_config = copy.deepcopy(target_config)
++    else:
++        # The draft is a plain dense Qwen3 stack. Deepcopying a MoE/wrapper
++        # config would drag expert fields along (num_experts,
++        # experts_implementation, quantization_config, ...), which transformers
++        # rejects on an expert-free architecture — rebuild a clean dense config
++        # from the target's geometry instead.
++        from transformers.models.qwen3 import Qwen3Config
++
++        carried = {}
++        for field in (
++            "hidden_size",
++            "num_attention_heads",
++            "num_key_value_heads",
++            "head_dim",
++            "rms_norm_eps",
++            "vocab_size",
++            "rope_theta",
++            "rope_scaling",
++            "max_position_embeddings",
++            "attention_bias",
++            "attention_dropout",
++            "hidden_act",
++            "initializer_range",
++            "use_cache",
++            "bos_token_id",
++            "eos_token_id",
++            "pad_token_id",
++        ):
++            value = getattr(target_config, field, None)
++            if value is not None:
++                carried[field] = value
++        draft_config = Qwen3Config(**carried)
      draft_config.architectures = ["Qwen3DSparkModel"]
      draft_config.num_target_layers = num_target_layers
      draft_config.num_hidden_layers = num_draft_layers
@@ -105,8 +180,57 @@ index d5b7c61..542d92c 100644
          target_embed_tokens = target_model.get_input_embeddings()
          target_lm_head = target_model.get_output_embeddings()
          assert (target_lm_head is not None) and (target_embed_tokens is not None)
+diff --git a/scripts/data/download_and_split.py b/scripts/data/download_and_split.py
+index a3a0fc8..c61fe65 100644
+--- a/scripts/data/download_and_split.py
++++ b/scripts/data/download_and_split.py
+@@ -152,25 +152,42 @@ def user_turns(row: dict) -> list[str]:
+ def write_train_jsonl(dataset, output_path: Path) -> int:
+     output_path.parent.mkdir(parents=True, exist_ok=True)
+     count = 0
++    skipped = 0
+     with output_path.open("w", encoding="utf-8") as handle:
+         for row_number, row in enumerate(dataset, start=1):
+             converted = normalize_conversations(row)
+-            validate_conversations(converted, row_number)
++            try:
++                validate_conversations(converted, row_number)
++            except ValueError:
++                # Public datasets contain occasional malformed rows (empty
++                # content, non-user first turn). Skip them instead of aborting
++                # the whole split.
++                skipped += 1
++                continue
+             handle.write(json.dumps(converted, ensure_ascii=False) + "\n")
+             count += 1
++    if skipped:
++        print(f"skipped {skipped} malformed train rows")
+     return count
+ 
+ 
+ def write_eval_jsonl(dataset, output_path: Path) -> int:
+     output_path.parent.mkdir(parents=True, exist_ok=True)
+     count = 0
++    skipped = 0
+     with output_path.open("w", encoding="utf-8") as handle:
+         for row_number, row in enumerate(dataset, start=1):
+             converted = normalize_conversations(row)
+-            validate_conversations(converted, row_number)
++            try:
++                validate_conversations(converted, row_number)
++            except ValueError:
++                skipped += 1
++                continue
+             turns = user_turns(converted)
+             handle.write(json.dumps({"turns": turns}, ensure_ascii=False) + "\n")
+             count += 1
++    if skipped:
++        print(f"skipped {skipped} malformed eval rows")
+     return count
+ 
+ 
 diff --git a/scripts/data/prepare_target_cache.py b/scripts/data/prepare_target_cache.py
-index cae8c0c..a06139c 100644
+index cae8c0c..96ea2f9 100644
 --- a/scripts/data/prepare_target_cache.py
 +++ b/scripts/data/prepare_target_cache.py
 @@ -52,6 +52,33 @@ class TargetForwardResult:
@@ -165,7 +289,38 @@ index cae8c0c..a06139c 100644
  
  
  def _get_hook_tensor(output):
-@@ -251,11 +283,32 @@ def main(local_rank: int):
+@@ -86,6 +118,7 @@ def run_target_forward_with_hooks(
+     input_ids: torch.Tensor,
+     attention_mask: torch.Tensor,
+     target_layer_ids,
++    out_device=None,
+ ):
+     backbone = _get_target_backbone(target_model)
+     layer_modules = backbone.layers
+@@ -95,7 +128,12 @@ def run_target_forward_with_hooks(
+ 
+     def capture_layer(layer_id: int):
+         def hook(_module, _inputs, output):
+-            captured_hidden_states[layer_id] = _get_hook_tensor(output).detach()
++            tensor = _get_hook_tensor(output).detach()
++            # Under device_map the layer may live on CPU/another GPU; move the
++            # capture to a single device so the later torch.cat is valid.
++            if out_device is not None:
++                tensor = tensor.to(out_device)
++            captured_hidden_states[layer_id] = tensor
+ 
+         return hook
+ 
+@@ -119,6 +157,8 @@ def run_target_forward_with_hooks(
+                 use_cache=False,
+             )
+             target_last_hidden_states = target_output.last_hidden_state.detach()
++            if out_device is not None:
++                target_last_hidden_states = target_last_hidden_states.to(out_device)
+             target_hidden_states = torch.cat(
+                 [captured_hidden_states[layer_id] for layer_id in target_layer_ids],
+                 dim=-1,
+@@ -251,11 +291,40 @@ def main(local_rank: int):
      tokenizer = AutoTokenizer.from_pretrained(
          config.model.target_model_name_or_path,
      )
@@ -184,6 +339,12 @@ index cae8c0c..a06139c 100644
 +        _load_kwargs["dtype"] = "auto"
 +    else:
 +        _load_kwargs["dtype"] = torch.bfloat16
++    # WEIRDSPEC_DEVICE_MAP lets a large target span GPU + CPU RAM (e.g. "auto")
++    # so a 35B model fits on a single small GPU by offloading layers. Hidden
++    # states are then gathered onto `device` (the local GPU) via out_device.
++    _device_map = os.environ.get("WEIRDSPEC_DEVICE_MAP") or None
++    if _device_map is not None:
++        _load_kwargs["device_map"] = _device_map
 +    try:
 +        target_model = AutoModel.from_pretrained(
 +            config.model.target_model_name_or_path,
@@ -199,7 +360,17 @@ index cae8c0c..a06139c 100644
 +            config.model.target_model_name_or_path,
 +            **_load_kwargs,
 +        )
-+    target_model = target_model.to(device=device).eval()
++    if _device_map is None:
++        target_model = target_model.to(device=device)
++    target_model = target_model.eval()
      target_hidden_size = _get_target_hidden_size(target_model)
      train_collator = ConversationCollator(
          tokenizer=tokenizer,
+@@ -308,6 +377,7 @@ def main(local_rank: int):
+                     input_ids=batch["input_ids"],
+                     attention_mask=batch["attention_mask"],
+                     target_layer_ids=target_layer_ids,
++                    out_device=device,
+                 )
+                 seq_lens = batch["attention_mask"].sum(dim=1).tolist()
+                 for sample_idx_in_batch, seq_len in enumerate(seq_lens):

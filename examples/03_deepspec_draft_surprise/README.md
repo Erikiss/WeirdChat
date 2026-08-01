@@ -39,6 +39,13 @@ Trade-offs: a weaker draft than a full multi-GPU run, and baseline texts come
 from OpenRouter's provider quantization while hidden states come from FP8 —
 the same replication gap WeirdChat documents.
 
+Colab hands out either a 40 GB or an 80 GB A100. The notebook reads the VRAM
+from phase 0 and adapts automatically: on a 40 GB card the 35B target offloads
+to CPU RAM (`WEIRDSPEC_DEVICE_MAP=auto`, cache batch 1 — slower but fits); on
+80 GB it runs fully on-GPU (batch 4). `prepare_target_cache.py` gathers the
+hooked hidden states onto the local GPU (`out_device`) so the offloaded
+forward still produces a single-device cache.
+
 ## Prerequisites
 
 - A DeepSpec checkout (`DEEPSPEC_ROOT`) with its `requirements.txt` installed.
@@ -162,6 +169,16 @@ Produces: pattern ranking by excess surprise (z-scored against the baseline
 null), Spearman correlations against WeirdChat's Elo axes and match rates,
 block-offset lookahead-decay curves, and token traces of the top patterns with
 +3σ/+5σ tokens marked.
+
+### Phase 6 (optional) — latent-state tipping analysis
+
+`phase6_hmm.py` models each transcript's per-token excess sequence as
+emissions of a K-state Gaussian HMM (Baum-Welch, deterministic init; Viterbi
+decoding): latent state = the model's mode (normal vs tipped), transitions =
+the tipping dynamics. Fitted per behavior, with the baseline held-out set as
+control. Yields probabilistic switch points (vs phase 5's argmax peak), dwell
+statistics (absorbing vs flickering weirdness) and per-behavior transition
+matrices. CPU-only, minutes on the full score file; notebook cell 13 runs it.
 
 ## Caveats
 

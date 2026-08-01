@@ -76,43 +76,42 @@ def detect_assistant_prefix(tokenizer, header: str = "<|im_start|>assistant\n") 
 
 
 def register_weirdchat_template(strip_think_prefix: str | None = None) -> None:
-    """Idempotently register the system-prompt-free Qwen template in DeepSpec.
+    """Ensure the system-prompt-free Qwen template is registered in DeepSpec.
 
-    With `deepspec_qwen36.patch` applied, the template also forces
-    ``enable_thinking=False`` at render time. On an unpatched DeepSpec the
+    With `deepspec_qwen36.patch` applied, the parser registers the template at
+    module level (so DataLoader worker processes resolve it too) and this
+    becomes a consistency check / override. On an unpatched DeepSpec the
     ``enable_thinking``/``prefix_added_by_template`` fields don't exist and are
     skipped.
 
     ``strip_think_prefix`` (the scaffold from :func:`detect_assistant_prefix`)
-    is optional: when given and supported, the registered template strips that
-    prefix from the assistant loss mask so training/scoring focus on real
-    content rather than the empty ``<think></think>`` scaffold. Off by default
-    to keep the exact rendering that phase 0's parser gate validated.
+    is optional: when given and supported, the template strips that prefix
+    from the assistant loss mask, and the prefix is exported as
+    ``WEIRDSPEC_STRIP_PREFIX`` so spawned worker processes register the
+    identical template. The desired entry replaces a differing existing one.
     """
     from deepspec.data.parser import TEMPLATE_REGISTRY, ChatTemplate  # type: ignore[import-not-found]
 
-    try:
-        TEMPLATE_REGISTRY.get(WEIRDCHAT_TEMPLATE_NAME)
-        return
-    except KeyError:
-        pass
     fields = getattr(ChatTemplate, "__dataclass_fields__", {})
     kwargs: dict[str, Any] = {}
     if "enable_thinking" in fields:
         kwargs["enable_thinking"] = False
     if strip_think_prefix and "prefix_added_by_template" in fields:
+        os.environ["WEIRDSPEC_STRIP_PREFIX"] = strip_think_prefix
         kwargs["assistant_loss_prefix"] = strip_think_prefix
         kwargs["prefix_added_by_template"] = True
-    TEMPLATE_REGISTRY.register(
-        WEIRDCHAT_TEMPLATE_NAME,
-        ChatTemplate(
-            assistant_header="<|im_start|>assistant\n",
-            user_header="<|im_start|>user\n",
-            system_prompt=None,
-            end_of_turn_token="<|im_end|>\n",
-            **kwargs,
-        ),
+    desired = ChatTemplate(
+        assistant_header="<|im_start|>assistant\n",
+        user_header="<|im_start|>user\n",
+        system_prompt=None,
+        end_of_turn_token="<|im_end|>\n",
+        **kwargs,
     )
+    templates = TEMPLATE_REGISTRY._templates  # registry has no replace API
+    if templates.get(WEIRDCHAT_TEMPLATE_NAME) == desired:
+        return
+    templates.pop(WEIRDCHAT_TEMPLATE_NAME, None)
+    TEMPLATE_REGISTRY.register(WEIRDCHAT_TEMPLATE_NAME, desired)
 
 
 def unwrap_text_config(config: Any) -> tuple[Any, str | None]:

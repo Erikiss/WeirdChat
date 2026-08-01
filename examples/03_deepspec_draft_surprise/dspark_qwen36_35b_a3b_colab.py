@@ -35,7 +35,9 @@ train = dict(
     _base.train,
     local_batch_size=1,
     global_batch_size=128,
-    num_train_epochs=4,
+    # With the ~3k-sample Colab corpus an epoch is only ~23 steps, so training
+    # is minutes — keep DeepSpec's 10-epoch default rather than undertraining.
+    num_train_epochs=10,
     torch_compile=False,
 )
 
