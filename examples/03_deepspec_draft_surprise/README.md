@@ -195,6 +195,22 @@ flags. Numpy-only analysis (CPU, seconds); the classifier is validated by
 ground-truth recovery on synthetic Arrhenius and VFT curves. `phase7_colab.ipynb`
 runs the sweep then the diagnosis and draws the Arrhenius plot.
 
+### Phase 7 on a single GPU (self-hosted subject model)
+
+`phase7_single_gpu.sh` is a one-shot script for a single-GPU box (RunPod H100,
+AWS g6e / L40S — the 3B-active MoE needs one GPU, not a p5/p6 node; FP8 needs
+Ada/Hopper). It installs vLLM, serves `Qwen/Qwen3.6-35B-A3B-FP8` locally under
+the dataset slug, runs the sweep against the local server (so weakly-reproducing
+behaviours like language-switching become measurable), keeps the reference
+judge on OpenRouter, then fits and prints the report. Escapes OpenRouter's
+generation rate limit, enabling the large sweeps (many samples/temperatures)
+that the noise analysis wants.
+
+```bash
+HF_TOKEN=hf_... OPENROUTER_API_KEY=sk-or-... bash phase7_single_gpu.sh
+# scale via env: SAMPLES=256 BEHAVIORS="language-switching-english" ...
+```
+
 ## Caveats
 
 - **Checkpoint identity.** WeirdChat's Qwen data was generated from a
