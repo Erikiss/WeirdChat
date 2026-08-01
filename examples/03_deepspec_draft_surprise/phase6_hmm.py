@@ -60,8 +60,20 @@ def fit_gaussian_hmm(sequences, k: int = 2, iters: int = 100, tol: float = 1e-5)
 
     Deterministic quantile initialization; returns dict with pi, A, means,
     vars, loglik. States are sorted by mean ascending (state 0 = calmest).
+
+    Vectorized across sequences: padded to the group's max length with a
+    validity mask, so the (inherently sequential) time recurrences run once
+    over T_max for all N sequences together instead of per sequence — the
+    per-timestep Python overhead was the bottleneck at millions of tokens.
     """
     import numpy as np
+
+    lengths = np.asarray([len(x) for x in sequences])
+    n_seq, t_max = len(sequences), int(lengths.max())
+    X = np.zeros((n_seq, t_max))
+    for i, x in enumerate(sequences):
+        X[i, : len(x)] = x
+    valid = np.arange(t_max)[None, :] < lengths[:, None]  # (N, T)
 
     x_all = np.concatenate(sequences)
     means = np.quantile(x_all, [(i + 0.5) / k for i in range(k)]).astype(float)
@@ -73,47 +85,52 @@ def fit_gaussian_hmm(sequences, k: int = 2, iters: int = 100, tol: float = 1e-5)
     prev_ll = -np.inf
     for _ in range(iters):
         log_pi, log_A = np.log(pi), np.log(A)
-        ll_total = 0.0
-        gamma0_sum = np.zeros(k)
-        xi_sum = np.zeros((k, k))
-        gamma_notlast_sum = np.zeros(k)
-        w_sum = np.zeros(k)
-        wx_sum = np.zeros(k)
-        wx2_sum = np.zeros(k)
+        logB = -0.5 * (
+            np.log(2 * np.pi * variances)[None, None, :]
+            + (X[:, :, None] - means[None, None, :]) ** 2 / variances[None, None, :]
+        )
+        logB = np.where(valid[:, :, None], logB, 0.0)
 
-        for x in sequences:
-            T = len(x)
-            logB = -0.5 * (
-                np.log(2 * np.pi * variances)[None, :]
-                + (x[:, None] - means[None, :]) ** 2 / variances[None, :]
+        # Forward, carrying the last valid alpha through the padding so the
+        # final column always holds each sequence's terminal alpha.
+        la = np.empty((n_seq, t_max, k))
+        la[:, 0] = log_pi[None, :] + logB[:, 0]
+        for t in range(1, t_max):
+            prev = la[:, t - 1]
+            new = logB[:, t] + _logsumexp(prev[:, :, None] + log_A[None, :, :], axis=1)
+            la[:, t] = np.where(valid[:, t, None], new, prev)
+        ll_seq = _logsumexp(la[:, -1], axis=1)  # (N,)
+
+        # Backward: beta is 0 at each sequence's last valid step and in padding.
+        lb = np.zeros((n_seq, t_max, k))
+        for t in range(t_max - 2, -1, -1):
+            nxt = logB[:, t + 1] + lb[:, t + 1]
+            val = _logsumexp(log_A[None, :, :] + nxt[:, None, :], axis=2)
+            lb[:, t] = np.where(valid[:, t + 1, None], val, 0.0)
+
+        gamma = np.exp(la + lb - ll_seq[:, None, None]) * valid[:, :, None]
+        pair_valid = valid[:, 1:]  # transition t -> t+1 exists
+        xi = (
+            np.exp(
+                la[:, :-1, :, None]
+                + log_A[None, None, :, :]
+                + (logB[:, 1:] + lb[:, 1:])[:, :, None, :]
+                - ll_seq[:, None, None, None]
             )
-            la = np.empty((T, k))
-            la[0] = log_pi + logB[0]
-            for t in range(1, T):
-                la[t] = logB[t] + _logsumexp(la[t - 1][:, None] + log_A, axis=0)
-            lb = np.zeros((T, k))
-            for t in range(T - 2, -1, -1):
-                lb[t] = _logsumexp(log_A + (logB[t + 1] + lb[t + 1])[None, :], axis=1)
-            last = la[-1]
-            ll = float(last.max() + np.log(np.exp(last - last.max()).sum()))
-            ll_total += ll
-            gamma = np.exp(la + lb - ll)
-            gamma0_sum += gamma[0]
-            for t in range(T - 1):
-                xi = np.exp(
-                    la[t][:, None] + log_A + (logB[t + 1] + lb[t + 1])[None, :] - ll
-                )
-                xi_sum += xi
-            gamma_notlast_sum += gamma[:-1].sum(axis=0)
-            w_sum += gamma.sum(axis=0)
-            wx_sum += (gamma * x[:, None]).sum(axis=0)
-            wx2_sum += (gamma * (x[:, None] ** 2)).sum(axis=0)
+            * pair_valid[:, :, None, None]
+        )
 
-        pi = gamma0_sum / len(sequences)
-        A = xi_sum / np.maximum(gamma_notlast_sum[:, None], 1e-12)
-        A /= A.sum(axis=1, keepdims=True)
-        means = wx_sum / np.maximum(w_sum, 1e-12)
-        variances = np.maximum(wx2_sum / np.maximum(w_sum, 1e-12) - means**2, 1e-4)
+        pi = gamma[:, 0].sum(axis=0) / n_seq
+        A = xi.sum(axis=(0, 1))
+        A /= np.maximum(A.sum(axis=1, keepdims=True), 1e-12)
+        w_sum = gamma.sum(axis=(0, 1))
+        means = (gamma * X[:, :, None]).sum(axis=(0, 1)) / np.maximum(w_sum, 1e-12)
+        variances = np.maximum(
+            (gamma * X[:, :, None] ** 2).sum(axis=(0, 1)) / np.maximum(w_sum, 1e-12)
+            - means**2,
+            1e-4,
+        )
+        ll_total = float(ll_seq.sum())
         if abs(ll_total - prev_ll) < tol * max(abs(prev_ll), 1.0):
             prev_ll = ll_total
             break
