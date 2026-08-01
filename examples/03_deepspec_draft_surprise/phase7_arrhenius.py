@@ -141,6 +141,20 @@ def diagnose(points: list[dict[str, Any]], n_boot: int = 500, seed: int = 0):
         result["verdict"] = "INCONCLUSIVE (rate saturates — add colder temperatures)"
         return result
 
+    # Noise gate: a physical tipping rate is smooth in T, so a curve that
+    # zig-zags by far more than binomial noise carries no fittable shape.
+    rates = result["rate"]
+    ses = [math.sqrt(max(p * (1 - p), 1e-6) / max(d["samples"], 1)) for p, d in zip(rates, pts)]
+    diffs = [rates[i + 1] - rates[i] for i in range(len(rates) - 1)]
+    direction_changes = sum(1 for i in range(len(diffs) - 1) if diffs[i] * diffs[i + 1] < 0)
+    median_se = sorted(ses)[len(ses) // 2] if ses else 0.0
+    max_swing = max((abs(d) for d in diffs), default=0.0)
+    result["direction_changes"] = direction_changes
+    result["max_swing_over_se"] = max_swing / median_se if median_se > 0 else float("inf")
+    if direction_changes >= 2 and max_swing > 4 * median_se:
+        result["verdict"] = "INCONCLUSIVE (noise-dominated curve — more samples needed)"
+        return result
+
     e_arr, _, sse_arr = fit_arrhenius(inv_t, ln_h)
     c2, _, _, sse_quad = fit_quadratic(inv_t, ln_h)
     t0, b_vft, _, sse_vft = fit_vft(temps, ln_h)
@@ -172,6 +186,9 @@ def diagnose(points: list[dict[str, Any]], n_boot: int = 500, seed: int = 0):
     else:
         verdict = "INCONCLUSIVE"
 
+    # A VFT fit that pushes T0 to the coldest sampled T is at the grid
+    # boundary: E_eff and the fragility ratio diverge there and are meaningless.
+    t0_at_boundary = t0 >= min(temps) * 0.98
     result.update(
         {
             "verdict": verdict,
@@ -182,7 +199,8 @@ def diagnose(points: list[dict[str, Any]], n_boot: int = 500, seed: int = 0):
             "T0": t0,
             "T0_ci": [t0_lo, t0_hi],
             "vft_B": b_vft,
-            "fragility_ratio": fragility_ratio(t0, temps),
+            "vft_degenerate": t0_at_boundary,
+            "fragility_ratio": (None if t0_at_boundary else fragility_ratio(t0, temps)),
         }
     )
     return result
@@ -242,12 +260,14 @@ def main() -> None:
         if "c2" not in r:
             lines.append(f"| {name} | {r['verdict']} | {r['n_temps']} | – | – | – | – | – |")
             continue
+        frag = r.get("fragility_ratio")
+        frag_str = "degenerate" if frag is None else f"{frag:.1f}x"
         lines.append(
             f"| {name} | {r['verdict']} | {r['n_temps']} | {r['E_arrhenius']:.2f} "
             f"| {r['c2']:.2f} [{r['c2_ci'][0]:.2f}, {r['c2_ci'][1]:.2f}] "
             f"| {r['delta_aic_vft_minus_arr']:+.1f} "
             f"| {r['T0']:.2f} [{r['T0_ci'][0]:.2f}, {r['T0_ci'][1]:.2f}] "
-            f"| {r['fragility_ratio']:.1f}x |"
+            f"| {frag_str} |"
         )
     lines += ["", "## Rate curves (match probability by temperature)", ""]
     for name in sorted(results):

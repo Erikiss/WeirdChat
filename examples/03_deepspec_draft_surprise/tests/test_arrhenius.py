@@ -92,6 +92,17 @@ def test_fit_arrhenius_recovers_slope():
     assert abs(e - E) < 1e-6 and abs(intercept - a) < 1e-6 and sse < 1e-12
 
 
+def test_noise_dominated_curve_is_inconclusive():
+    # The real language-switching run: a non-monotonic zig-zag from sampling
+    # noise (rate swings ~22%->3%->14%->11%->8%->17%), no fittable shape.
+    rates = [0.22, 0.03, 0.14, 0.11, 0.08, 0.17]
+    pts = [{"temperature": t, "matched": int(round(p * 144)), "samples": 144, "mean_len": 400.0}
+           for t, p in zip(TEMPS[:6], rates)]
+    r = diagnose(pts, n_boot=100)
+    assert "INCONCLUSIVE" in r["verdict"] and "noise" in r["verdict"].lower()
+    assert r["direction_changes"] >= 2
+
+
 def test_saturated_rate_is_inconclusive_and_flagged():
     # Rate pinned at the ceiling everywhere but the coldest point: not enough
     # informative (sub-saturation) temperatures to fit a shape.
