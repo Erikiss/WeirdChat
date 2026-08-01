@@ -64,3 +64,36 @@ runs), report `nll_target` and `excess` as two separate axes (semantic-tail
 vs surface-form weirdness), enable `WEIRDSPEC_STRIP_THINK=1`, enlarge the
 held-out null, and consider the weird-tuned contrast draft from the README's
 optional extension for behavior fingerprints.
+
+## Phase 6 addendum: HMM tipping analysis (2026-08-01)
+
+A 2-state Gaussian HMM over per-token excess, fitted per behavior with the
+baseline as control (16 groups, 7k sequences, CPU minutes after
+vectorization). Key rows:
+
+| group | mean_normal | mean_tipped | stay_tip | dwell_tip | tip% tokens |
+|---|---|---|---|---|---|
+| BASELINE (control) | 0.07 | 6.58 | 0.861 | 7 | 76% |
+| typical behaviors (10 of 16) | ~0.1–0.3 | 6.6–7.6 | ~0.91 | 9–15 | 85–89% |
+| **language-switching-english** | 5.66 | **12.25** | 0.752 | 4 | 56% |
+| **unprompted-racial-slurs** | 3.12 | **10.01** | 0.490 | 2 | 45% |
+
+Findings:
+
+1. **The pre-registered control check fired**: the baseline also "tips" into a
+   ~6.6-mean state covering 76% of tokens — the generic high state is the
+   undertrained draft's default surprise level, not a behavior mode. For most
+   behaviors the fitted states mirror the control and identify nothing
+   behavior-specific.
+2. **Two behaviors break the control pattern**, and they are exactly the
+   surface-form-weird ones: language switching fits a well-separated
+   ultra-hot state (mean 12.25, ~2x the control's; every transcript enters
+   it, and its HMM switch points align best with the phase-5 peaks — median
+   distance 97 vs 130–550 elsewhere), and racial slurs fit a hot *flickering*
+   state (dwell 2 — short bursts at the slur tokens, not a sticky mode).
+3. Reading: a latent "tipped mode" in the Markov sense is identifiable for
+   token-level mode switches (language, slur bursts) even under a weak draft;
+   for semantically weird but fluent behaviors it is not — consistent with the
+   two-axes conclusion above. A converged draft (calm control) and/or k=3
+   states, or emissions from `nll_target` instead of excess, are the natural
+   refinements.
