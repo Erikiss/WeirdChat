@@ -180,6 +180,21 @@ control. Yields probabilistic switch points (vs phase 5's argmax peak), dwell
 statistics (absorbing vs flickering weirdness) and per-behavior transition
 matrices. CPU-only, minutes on the full score file; notebook cell 13 runs it.
 
+### Phase 7 (optional) — Arrhenius / super-Arrhenius test
+
+`phase7_sweep.py` resamples selected patterns at several sampling temperatures
+via OpenRouter and grades them with the reference rubric judge (match counts
+per behavior x temperature); `phase7_arrhenius.py` fits the per-token tipping
+hazard `h(T) = -ln(1-p)/L` and decides **Arrhenius vs super-Arrhenius**. The
+softmax temperature IS the thermodynamic T, so this is literal: a straight
+`ln h` vs `1/T` plot is Arrhenius; a concave one (quadratic `c2<0`, VFT
+preferred by AIC, finite critical `T0>0`) is super-Arrhenius / fragile, with a
+temperature below which the behavior effectively vanishes. Verdict per group
+combines curvature-CI sign, AIC, and `T0`, with detection-floor and saturation
+flags. Numpy-only analysis (CPU, seconds); the classifier is validated by
+ground-truth recovery on synthetic Arrhenius and VFT curves. `phase7_colab.ipynb`
+runs the sweep then the diagnosis and draws the Arrhenius plot.
+
 ## Caveats
 
 - **Checkpoint identity.** WeirdChat's Qwen data was generated from a
