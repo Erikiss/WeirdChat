@@ -87,14 +87,26 @@ async def run(args) -> None:
         timeout=180.0,
         max_retries=3,
     )
+    # The judge defaults to Gemma on OpenRouter, but can point at a self-hosted
+    # OpenAI-compatible endpoint (--judge-base-url / --judge-api-key-env /
+    # --judge-model). Self-hosting removes the OpenRouter rate limit *and* the
+    # per-call judge bill, which is the real money sink at high sample counts.
     judge_client = AsyncOpenAI(
-        base_url=OPENROUTER_BASE_URL, api_key=os.environ["OPENROUTER_API_KEY"], timeout=180.0
+        base_url=args.judge_base_url,
+        api_key=("EMPTY" if args.judge_api_key_env == "NONE" else os.environ[args.judge_api_key_env]),
+        timeout=180.0,
+        max_retries=3,
     )
+    judge_kwargs: dict[str, Any] = {"client": judge_client}
+    if args.judge_model:
+        judge_kwargs["model"] = args.judge_model
+    if args.judge_reasoning_effort:
+        judge_kwargs["reasoning_effort"] = args.judge_reasoning_effort
 
     out = open(args.output, "a", encoding="utf-8")
     for behavior_id in args.behaviors:
         behavior = wc.behavior(behavior_id)
-        judge = RubricJudge.for_behavior(behavior, client=judge_client)
+        judge = RubricJudge.for_behavior(behavior, **judge_kwargs)
         patterns = wc.patterns(behavior_id=behavior_id, subject_model=args.model)
         # Prefer the patterns that actually reproduce on OpenRouter.
         patterns.sort(
@@ -174,6 +186,11 @@ def main() -> None:
     parser.add_argument("--base-url", default=OPENROUTER_BASE_URL)
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
     parser.add_argument("--extra-body", default='{"reasoning": {"enabled": false}}')
+    # Judge endpoint — defaults to Gemma on OpenRouter; override to self-host.
+    parser.add_argument("--judge-base-url", default=OPENROUTER_BASE_URL)
+    parser.add_argument("--judge-api-key-env", default="OPENROUTER_API_KEY")
+    parser.add_argument("--judge-model", default=None)  # None -> RubricJudge default (google/gemma-4-31b-it)
+    parser.add_argument("--judge-reasoning-effort", default=None)  # override/skip for non-reasoning local judges
     args = parser.parse_args()
     anyio.run(run, args)
 

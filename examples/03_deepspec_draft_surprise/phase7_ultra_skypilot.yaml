@@ -1,0 +1,97 @@
+# Phase 7 ULTRA — max-scale Arrhenius / super-Arrhenius sweep on a 2-GPU spot node,
+# with a hard cost cap anchored in the config.
+#
+# Difference from phase7_skypilot.yaml (the single-GPU variant):
+#   * TWO GPUs — subject model on GPU 0, the Gemma reference judge SELF-HOSTED
+#     on GPU 1. Self-hosting the judge removes the OpenRouter rate limit AND its
+#     per-call bill, which at high sample counts is the real money sink. No
+#     OpenRouter key is needed in this mode.
+#   * Cranked scale — more patterns, prompts, samples, and temperature points.
+#   * A code-enforced budget guard (see COST CAP below) that guarantees the
+#     spend stays sub-four-digit no matter what.
+#
+# STATUS: the local-judge / 2-GPU path is WIRED but not yet bring-up-tested in
+# this repo (same status as the other GPU cells) — serving Gemma 4 31B locally
+# is its own model bring-up. The single-GPU YAML (judge on OpenRouter) is the
+# proven path; use this once you want to push scale past the OpenRouter limit.
+#
+# ---------------------------------------------------------------------------
+# COST CAP — three layers, all in this file, guaranteeing < four digits:
+#   1. use_spot: true + a MANAGED job  -> never falls back to on-demand pricing,
+#      and SkyPilot tears the cluster down the instant the job ends (no forgotten
+#      idle GPU — the #1 way people burn four figures).
+#   2. A hard WALL-CLOCK guard in `run:`  -> MAX_BUDGET_EUR / WORST_CASE_EUR_PER_HR
+#      = max seconds, enforced with `timeout`. Worst case (full runtime on the
+#      priciest allowed node) spends exactly MAX_BUDGET_EUR, then stops. Partial
+#      results are on /output and the sweep is resumable, so a relaunch continues.
+#   3. MAX_BUDGET_EUR defaults to 400 — edit it below, but keep it under 1000.
+# ---------------------------------------------------------------------------
+#
+# Launch as a MANAGED job (spot auto-recovery + auto-teardown):
+#   export HF_TOKEN=hf_...
+#   sky jobs launch -n phase7-ultra --env HF_TOKEN \
+#     examples/03_deepspec_draft_surprise/phase7_ultra_skypilot.yaml
+#
+#   sky jobs queue           # status across recoveries
+#   sky jobs logs -n phase7-ultra
+#   # sweep jsonl + report land in the bucket mounted at /output
+
+name: weirdspec-phase7-ultra
+
+resources:
+  # TWO FP8-capable GPUs on one node. H100:2 is the clean default (each 80GB:
+  # ~35GB FP8 subject on one, ~62GB bf16 Gemma judge on the other). A100-80GB:2
+  # is an Ampere fallback (dequantizes the FP8 subject to bf16 ~70GB — fits, but
+  # slower). L40S:2 (48GB each) does NOT hold the bf16 judge — it needs a
+  # quantized Gemma (set JUDGE_MODEL_PATH to an FP8/AWQ build); left out here.
+  accelerators: {H100: 2, A100-80GB: 2}
+  use_spot: true
+  disk_size: 280        # subject ~35GB + judge ~62GB + HF caches + headroom
+
+file_mounts:
+  /output:
+    name: weirdspec-phase7-ultra-CHANGE-ME     # must be globally unique
+    mode: MOUNT
+
+envs:
+  HF_TOKEN: ""                       # from `--env HF_TOKEN` on the launch command
+  # ---- COST CAP (edit these two; keep the product under €1000) ----
+  MAX_BUDGET_EUR: "400"              # hard ceiling; job self-stops before exceeding it
+  WORST_CASE_EUR_PER_HR: "9"         # conservative worst-case spot rate for a 2xH100-class node
+  # ---- self-hosted judge (ultra mode). Empty JUDGE_MODEL_PATH -> judge on OpenRouter ----
+  JUDGE_MODEL_PATH: "google/gemma-4-31b-it"   # HF id of the judge to serve on GPU 1
+  JUDGE_SERVED_NAME: "google/gemma-4-31b-it"  # keep = the dataset judge slug
+  # ---- ULTRA sweep scale ----
+  BEHAVIORS: "language-switching-english chemtrails-assertion recommends-drunk-driving"
+  PATTERNS: "12"
+  PROMPTS: "12"
+  SAMPLES: "256"
+  TEMPS: "0.25 0.35 0.45 0.55 0.65 0.75 0.85 1.0 1.15 1.3 1.45"
+  GEN_CONCURRENCY: "96"      # local vLLM subject on an H100 handles this
+  JUDGE_CONCURRENCY: "48"    # local judge, no OpenRouter rate limit anymore
+
+setup: |
+  set -e
+  if [ ! -d ~/WeirdChat ]; then
+    git clone --branch claude/repo-published-weights-u71yew \
+      https://github.com/Erikiss/WeirdChat ~/WeirdChat
+  fi
+  pip install -q -U vllm
+  pip install -q -e ~/WeirdChat
+
+run: |
+  set -e
+  # --- COST CAP layer 2: derive a hard wall-clock limit from the budget. ---
+  MAX_SEC=$(python3 -c "print(int(${MAX_BUDGET_EUR}/${WORST_CASE_EUR_PER_HR}*3600))")
+  echo "== budget guard: hard stop after ${MAX_SEC}s (= EUR ${MAX_BUDGET_EUR} at EUR ${WORST_CASE_EUR_PER_HR}/h worst case) =="
+  set +e
+  # --signal=INT so the script's EXIT/INT trap runs and both vLLM servers die.
+  timeout --signal=INT "${MAX_SEC}" \
+    env SKIP_INSTALL=1 REPO_DIR="$HOME/WeirdChat" DATA_DIR=/output \
+        SUBJECT_GPU=0 JUDGE_GPU=1 \
+    bash "$HOME/WeirdChat/examples/03_deepspec_draft_surprise/phase7_single_gpu.sh"
+  code=$?
+  if [ "$code" = 124 ]; then
+    echo "== budget cap of EUR ${MAX_BUDGET_EUR} reached: stopped. Partial (resumable) results are on /output. =="
+  fi
+  exit 0
