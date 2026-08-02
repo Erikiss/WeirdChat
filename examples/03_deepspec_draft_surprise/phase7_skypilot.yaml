@@ -1,0 +1,89 @@
+# Phase 7 — Arrhenius / super-Arrhenius temperature sweep on ONE spot GPU.
+#
+# What this buys you: SkyPilot finds and provisions a single FP8-capable GPU
+# across whatever cloud has spot capacity *right now* — that cross-cloud
+# availability is the entire point. SkyPilot itself is free and open source;
+# you pay only for the underlying spot GPU (a few euros for this sweep), not
+# for the orchestration. It does NOT get you a discount — it gets you a box
+# when AWS us-east has none.
+#
+# The job self-hosts Qwen/Qwen3.6-35B-A3B-FP8 with vLLM, runs the whole
+# temperature sweep against the LOCAL server (so weakly-OpenRouter-reproducing
+# behaviours like language-switching are finally measurable), keeps the
+# reference rubric judge on OpenRouter, fits Arrhenius vs super-Arrhenius, and
+# writes every artifact to a bucket that survives spot pre-emption.
+#
+# ---------------------------------------------------------------------------
+# Launch it as a MANAGED job so spot pre-emption auto-recovers on a new box:
+#
+#   export HF_TOKEN=hf_...
+#   export OPENROUTER_API_KEY=sk-or-...
+#   sky jobs launch -n phase7 --env HF_TOKEN --env OPENROUTER_API_KEY \
+#     examples/03_deepspec_draft_surprise/phase7_skypilot.yaml
+#
+# Watch / fetch:
+#   sky jobs queue                 # status across recoveries
+#   sky jobs logs -n phase7        # live log; the final report is cat'd here
+#   # the sweep jsonl + report land in the bucket mounted at /output
+#
+# (`sky launch` — the non-managed form — also works, but a spot pre-emption
+#  then just kills the run instead of relaunching it. Use `sky jobs launch`.)
+# ---------------------------------------------------------------------------
+
+name: weirdspec-phase7
+
+resources:
+  # Any ONE of these — SkyPilot provisions whichever cloud/region has spot
+  # capacity. L40S 48GB and H100 80GB run FP8 natively (Ada sm89 / Hopper
+  # sm90) and host the ~35GB FP8 subject comfortably; H100 is ~2-3x faster and
+  # leaves room to also self-host the judge later. A100-80GB is Ampere (sm80):
+  # vLLM will DEQUANTIZE the FP8 weights to bf16 (~70GB, slower) — it fits on
+  # 80GB and is a legitimate capacity fallback, but drop it from this list if
+  # you want FP8-native only.
+  accelerators: {L40S: 1, H100: 1, A100-80GB: 1}
+  use_spot: true
+  disk_size: 160        # ~35GB weights + HF cache + dataset + headroom
+
+# Persist results off the ephemeral spot disk. SkyPilot creates this bucket on
+# first launch and re-mounts it after any pre-emption, so the run resumes
+# against the already-written sweep jsonl instead of starting from zero.
+# --> change the name to something globally unique before launching. <--
+# (Don't need a bucket? Delete this whole file_mounts block and set
+#  DATA_DIR=~/weirdspec_data in `run:`; you'll then rely on `sky jobs logs`
+#  for the report and lose resume-after-pre-emption.)
+file_mounts:
+  /output:
+    name: weirdspec-phase7-CHANGE-ME     # must be globally unique
+    mode: MOUNT
+
+envs:
+  # Pulled from your shell by the `--env` flags on the launch command above.
+  HF_TOKEN: ""
+  OPENROUTER_API_KEY: ""
+  # Sweep scale — edit here, or leave the script defaults. These names match
+  # the env knobs phase7_single_gpu.sh already reads.
+  BEHAVIORS: "language-switching-english chemtrails-assertion recommends-drunk-driving"
+  PATTERNS: "6"
+  PROMPTS: "8"
+  SAMPLES: "128"
+  TEMPS: "0.3 0.4 0.5 0.6 0.7 0.85 1.0 1.15 1.3"
+  GEN_CONCURRENCY: "32"     # local vLLM; an H100 can take 64-128, keep L40S ~32
+  JUDGE_CONCURRENCY: "16"   # OpenRouter is rate-limited; this is the real bottleneck
+
+setup: |
+  set -e
+  if [ ! -d ~/WeirdChat ]; then
+    git clone --branch claude/repo-published-weights-u71yew \
+      https://github.com/Erikiss/WeirdChat ~/WeirdChat
+  fi
+  # Heavy installs happen once here; `run:` passes SKIP_INSTALL=1 so a job
+  # restart on the same box doesn't reinstall.
+  pip install -q -U vllm
+  pip install -q -e ~/WeirdChat
+
+run: |
+  set -e
+  SKIP_INSTALL=1 \
+  REPO_DIR=~/WeirdChat \
+  DATA_DIR=/output \
+  bash ~/WeirdChat/examples/03_deepspec_draft_surprise/phase7_single_gpu.sh

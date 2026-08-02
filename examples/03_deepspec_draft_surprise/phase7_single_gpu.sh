@@ -51,12 +51,16 @@ MAX_MODEL_LEN="${MAX_MODEL_LEN:-4096}"
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.92}"
 # ----------------------------------------------------------------------------
 
-echo "==> installing deps (vllm + WeirdChat)"
-pip install -q -U vllm >/tmp/pip_vllm.log 2>&1 || { echo "vllm install failed:"; tail -20 /tmp/pip_vllm.log; exit 1; }
 if [ ! -d "$REPO_DIR" ]; then
   git clone --branch "$BRANCH" https://github.com/Erikiss/WeirdChat "$REPO_DIR"
 fi
-pip install -q -e "$REPO_DIR" >/tmp/pip_wc.log 2>&1 || { echo "weirdchat install failed:"; tail -20 /tmp/pip_wc.log; exit 1; }
+# SKIP_INSTALL=1 lets an orchestrator (e.g. SkyPilot `setup:`) do the heavy
+# installs once and reuse them across job restarts.
+if [ "${SKIP_INSTALL:-0}" != "1" ]; then
+  echo "==> installing deps (vllm + WeirdChat)"
+  pip install -q -U vllm >/tmp/pip_vllm.log 2>&1 || { echo "vllm install failed:"; tail -20 /tmp/pip_vllm.log; exit 1; }
+  pip install -q -e "$REPO_DIR" >/tmp/pip_wc.log 2>&1 || { echo "weirdchat install failed:"; tail -20 /tmp/pip_wc.log; exit 1; }
+fi
 cd "$REPO_DIR/examples/03_deepspec_draft_surprise"
 mkdir -p "$DATA_DIR"
 
