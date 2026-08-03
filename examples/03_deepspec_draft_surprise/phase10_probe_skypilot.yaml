@@ -1,0 +1,72 @@
+# Phase 10 probe batch on a big SPOT CPU node — the fast path for the
+# perceptron probes (notebook Cells 14 + 14b), with a hard cost cap.
+#
+# What it runs: examples/03_deepspec_draft_surprise/phase10_probe.py — the
+# 5-pattern perceptron and the precursor-or-prompt diagnostic, with the
+# permutation null fanned out over all cores (N_PERM=200 instead of the
+# notebook's 30 -> p-value resolution 0.005). No GPU: sklearn is CPU-only,
+# so a GPU node would add cost and zero speed.
+#
+# Expected numbers on a 64-vCPU spot node: compute ~3-6 min, plus ~3-5 min
+# provisioning. Spot rate ~EUR 1-2/h -> the whole run costs CENTS. The
+# budget guard below is the same three-layer pattern as phase7_ultra:
+#   1. use_spot + managed job -> auto-teardown, no forgotten idle node
+#   2. wall-clock guard: MAX_BUDGET_EUR / WORST_CASE_EUR_PER_HR -> `timeout`
+#   3. MAX_BUDGET_EUR defaults to 5 (yes, five euros — this is a CPU job)
+#
+# DATA: the node needs the routing captures. Mirror your Drive folder
+# locally once (Drive web download or `rclone copy gdrive:weirdspec
+# ~/weirdspec`), so that ~/weirdspec contains routing_caps/ (index.jsonl +
+# *.npz) and weird_transcripts.jsonl (optional, enables the prompt-matched
+# test C). SkyPilot syncs that directory to the node as /data.
+#
+# Launch as a MANAGED job:
+#   sky jobs launch -n phase10-probe \
+#     examples/03_deepspec_draft_surprise/phase10_probe_skypilot.yaml
+#   sky jobs logs -n phase10-probe --follow
+#   # probe_results.json + PNGs land in the bucket mounted at /output
+
+name: weirdspec-phase10-probe
+
+resources:
+  cpus: 64+
+  memory: 64+
+  use_spot: true
+  disk_size: 40
+
+file_mounts:
+  /output:
+    name: weirdspec-phase10-probe-CHANGE-ME    # must be globally unique
+    mode: MOUNT
+  /data: ~/weirdspec         # local mirror of the Drive folder (see DATA above)
+
+envs:
+  # ---- COST CAP ----
+  MAX_BUDGET_EUR: "5"                # hard ceiling; job self-stops before exceeding it
+  WORST_CASE_EUR_PER_HR: "4"         # conservative worst case for a 64-vCPU spot node
+  # ---- probe scale ----
+  N_PERM: "200"                      # permutation-null size (p resolution = 1/(N+1))
+
+setup: |
+  set -e
+  if [ ! -d ~/WeirdChat ]; then
+    git clone --branch claude/repo-published-weights-u71yew \
+      https://github.com/Erikiss/WeirdChat ~/WeirdChat
+  fi
+  pip install -q numpy scipy scikit-learn matplotlib joblib
+
+run: |
+  set -e
+  # --- COST CAP layer 2: derive a hard wall-clock limit from the budget. ---
+  MAX_SEC=$(python3 -c "print(int(${MAX_BUDGET_EUR}/${WORST_CASE_EUR_PER_HR}*3600))")
+  echo "== budget guard: hard stop after ${MAX_SEC}s (= EUR ${MAX_BUDGET_EUR} at EUR ${WORST_CASE_EUR_PER_HR}/h worst case) =="
+  set +e
+  timeout --signal=INT "${MAX_SEC}" \
+    env CAPTURE_DIR=/data/routing_caps DATA_DIR=/data OUT_DIR=/output \
+        N_PERM="${N_PERM}" \
+    python3 "$HOME/WeirdChat/examples/03_deepspec_draft_surprise/phase10_probe.py"
+  code=$?
+  if [ "$code" = 124 ]; then
+    echo "== budget cap of EUR ${MAX_BUDGET_EUR} reached: stopped. Partial output is on /output. =="
+  fi
+  exit 0
