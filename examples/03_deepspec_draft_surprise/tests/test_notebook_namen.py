@@ -108,7 +108,8 @@ def test_zellen_sind_gueltiges_python(pfad):
 # Disk-Offload - nach zwanzig Minuten Download. Genau so ist
 # phase12_tokenisierung beim zweiten Anlauf gestorben, weil der geerbte
 # Praeambel-Block den Lader mitbrachte.
-NUR_CPU = ["phase12_tokenisierung", "phase12_moltbook_basisrate"]
+NUR_CPU = ["phase12_tokenisierung", "phase12_moltbook_basisrate",
+           "phase12_moe_diagnose"]
 VERBOTEN_AUF_CPU = ("AutoModelForCausalLM", "device_map=", "torch.cuda",
                     "cuda.mem_get_info")
 
