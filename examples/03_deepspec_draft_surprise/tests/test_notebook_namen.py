@@ -101,3 +101,38 @@ def test_zellen_sind_gueltiges_python(pfad):
         except SyntaxError as e:
             raise AssertionError("Zelle %d in %s ist kein gueltiges Python: %s"
                                  % (i, os.path.basename(pfad), e))
+
+
+# Notebooks, die als CPU-Zellen angekuendigt sind. Ein Modell-Lader darin ist
+# kein Schoenheitsfehler: er zieht 37 GB und stirbt auf einer CPU-Laufzeit beim
+# Disk-Offload - nach zwanzig Minuten Download. Genau so ist
+# phase12_tokenisierung beim zweiten Anlauf gestorben, weil der geerbte
+# Praeambel-Block den Lader mitbrachte.
+NUR_CPU = ["phase12_tokenisierung", "phase12_moltbook_basisrate"]
+VERBOTEN_AUF_CPU = ("AutoModelForCausalLM", "device_map=", "torch.cuda",
+                    "cuda.mem_get_info")
+
+
+@pytest.mark.parametrize("basis", NUR_CPU)
+def test_cpu_zellen_laden_kein_modell(basis):
+    pfad = os.path.join(HIER, "..", basis + ".ipynb")
+    if not os.path.exists(pfad):
+        pytest.skip("%s fehlt" % basis)
+    quelle = "".join(q for _, q in zellen(pfad))
+    gefunden = [w for w in VERBOTEN_AUF_CPU if w in quelle]
+    assert not gefunden, ("%s ist als CPU-Zelle angekuendigt, enthaelt aber %s"
+                          % (basis, ", ".join(gefunden)))
+
+
+@pytest.mark.parametrize("basis", NUR_CPU)
+def test_cpu_zellen_sagen_es_auch(basis):
+    """Die Ankuendigung gehoert ins Notebook, nicht nur in den Chat."""
+    pfad = os.path.join(HIER, "..", basis + ".ipynb")
+    if not os.path.exists(pfad):
+        pytest.skip("%s fehlt" % basis)
+    with open(pfad, encoding="utf-8") as f:
+        nb = json.load(f)
+    text = " ".join("".join(c.get("source", [])) for c in nb.get("cells", [])
+                    if c.get("cell_type") == "markdown").lower()
+    assert "keine gpu" in text or "ohne gpu" in text, \
+        "%s sagt nirgends, dass es ohne GPU laeuft" % basis
