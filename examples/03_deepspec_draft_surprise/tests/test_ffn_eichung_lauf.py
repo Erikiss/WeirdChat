@@ -30,6 +30,8 @@ import unicodedata
 import numpy as np
 import pytest
 
+from mini_torch import haken_traeger, mach_torch, silu, t
+
 HIER = os.path.dirname(os.path.abspath(__file__))
 NB = os.path.join(HIER, "..", "phase12_ffn_eichung.ipynb")
 
@@ -47,94 +49,16 @@ def koerper():
     return quelle[quelle.index(marke):]
 
 
-class T(np.ndarray):
-    """numpy-Feld mit den Torch-Methoden, die die Zelle benutzt. Als Unterklasse
-       von ndarray, damit Ausschnitte SICHTEN sind - nur so wirkt zero_() auf
-       die Elternmatrix, genau wie bei Torch."""
-
-    def detach(self):
-        return self
-
-    def clone(self):
-        return np.array(self).view(T)
-
-    def zero_(self):
-        self[...] = 0
-        return self
-
-    def copy_(self, v):
-        self[...] = np.asarray(v)
-        return self
-
-    def float(self):
-        return self
-
-    def cpu(self):
-        return self
-
-    def numpy(self):
-        return np.asarray(self)
-
-    def to(self, *a, **k):
-        return self
-
-    def chunk(self, n, dim=-1):
-        return tuple(x.view(T) for x in np.split(np.asarray(self), n, axis=dim))
+Traeger = haken_traeger()
 
 
-def t(a):
-    return np.asarray(a, dtype=np.float64).view(T)
-
-
-def silu(x):
-    return np.asarray(x) / (1.0 + np.exp(-np.asarray(x)))
-
-
-class _FN:
-    @staticmethod
-    def linear(x, W):
-        return t(np.asarray(x) @ np.asarray(W).T)
-
-
-class _CUDA:
-    @staticmethod
-    def empty_cache():
-        pass
-
-    @staticmethod
-    def synchronize():
-        pass
-
-    @staticmethod
-    def mem_get_info():
-        return (80e9, 80e9)
-
-
-class _NG:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
-
-
-class Experten:
+class Experten(Traeger):
     def __init__(self, rs):
+        Traeger.__init__(self)
         self.gate_up_proj = t(rs.randn(NEXP, 2 * INTER, HID) * 0.5)
         self.down_proj = t(rs.randn(NEXP, HID, INTER) * 0.5)
         self.intermediate_dim = INTER
         self.act_fn = silu
-        self._haken = []
-
-    def register_forward_pre_hook(self, h):
-        self._haken.append(h)
-        griff = types.SimpleNamespace()
-        griff.remove = lambda h=h: (self._haken.remove(h) if h in self._haken else None)
-        return griff
-
-    def feuere(self, x, idx):
-        for h in list(self._haken):
-            h(self, (x, idx))
 
 
 JP_TXT = "| サービス名 | 保存容量 | 料金 |\n| Google ドライブ | 15 GB | 無料 |"
@@ -259,10 +183,7 @@ def lauf(quelle, startwert=1):
         def decode(self, *a, **k):
             return w.decode(*a, **k)
     tokenizer = Tok()
-    torch = types.SimpleNamespace(
-        nn=types.SimpleNamespace(functional=_FN), cuda=_CUDA,
-        no_grad=lambda: _NG(), manual_seed=lambda s: np.random.seed(s % 2 ** 31))
-    ns = dict(os=os, re=re, math=math, torch=torch, collections=collections,
+    ns = dict(os=os, re=re, math=math, torch=mach_torch(), collections=collections,
               unicodedata=unicodedata, random=random, np=np, glob=None, json=json,
               gc=gc, sys=sys, time=time,
               model=w, tokenizer=tokenizer, PROMPTS={"p1": PROMPT}, ZIEL_ID="p1",
