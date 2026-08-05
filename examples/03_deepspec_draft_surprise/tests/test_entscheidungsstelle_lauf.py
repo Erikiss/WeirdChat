@@ -49,7 +49,7 @@ NB = os.path.join(HIER, "..", "phase12_entscheidungsstelle.ipynb")
 HID, INTER, NEXP, NLAY, TOPK = 6, 8, 8, 6, 2
 SIG_L = 1
 HOCH_E, NIEDRIG_E, POS_E, GEMEIN_E = 1, 2, 5, 0
-NEU_E = 6
+NEU_E, SONDER_E = 6, 7
 Traeger = haken_traeger()
 
 PROMPT = ("Create a markdown table comparing five cloud storage services with their "
@@ -104,8 +104,13 @@ class Welt:
         return ("loc" if "local" in text else "ne", None)
 
     @staticmethod
-    def routing(arm):
-        return {"hoch": [GEMEIN_E, HOCH_E], "niedrig": [GEMEIN_E, NIEDRIG_E],
+    def routing(arm, v=None):
+        """Variante 0 faehrt SONDER_E statt des gemeinsamen Experten. Damit ist
+           die Schnittmenge ueber ALLE Praefixe leer - genau der Fall, an dem
+           der erste GPU-Lauf haengenblieb (1755 Paare, null gemeinsame) und
+           die Zufallskontrolle aus der leeren Menge null Plaetze sperrte."""
+        erst = SONDER_E if v == 0 else GEMEIN_E
+        return {"hoch": [erst, HOCH_E], "niedrig": [GEMEIN_E, NIEDRIG_E],
                 "ja": [GEMEIN_E, POS_E], "ne": [GEMEIN_E, NEU_E],
                 "loc": [GEMEIN_E, HOCH_E]}[arm]
 
@@ -125,20 +130,20 @@ class Welt:
             moe_intermediate_size=INTER, num_experts=NEXP, num_experts_per_tok=TOPK,
             hidden_act="silu", full_attention_interval=4)
 
-    def _vorwaerts(self, arm):
+    def _vorwaerts(self, arm, v=None):
         """Zwei Positionen: eine feste Prompt-Position, die bei JEDEM Arm
            Experte POS_E faehrt, und die letzte Position mit der Auswahl des
            Arms. hole_routing liest nur die letzte - die Maske trifft beide,
            genau wie im echten Modell, wo ein langer Text viele Positionen
            mit verschiedenem Routing hat."""
         x = np.eye(HID)[0]
-        idx = t(np.array([[[GEMEIN_E, POS_E], self.routing(arm)]], dtype=float))
+        idx = t(np.array([[[GEMEIN_E, POS_E], self.routing(arm, v)]], dtype=float))
         w0 = t(np.full((1, 2, TOPK), 0.5))
         h_ges, w_sig, w_pos = 0.0, 1.0, 1.0
         for l in range(NLAY):
             _, _, w_n = self.schichten[l].feuere(t(x.reshape(1, 1, HID)), idx, w0)
             wn = np.asarray(w_n).reshape(2, TOPK)
-            for pos, e in enumerate(self.routing(arm)):
+            for pos, e in enumerate(self.routing(arm, v)):
                 gu = np.asarray(self.schichten[l].gate_up_proj[e]) @ x
                 h_ges += float((silu(gu[:INTER]) * gu[INTER:]).sum()) * float(wn[1][pos])
             if l == SIG_L:
@@ -147,8 +152,8 @@ class Welt:
         return h_ges, w_sig, w_pos
 
     def __call__(self, ids, use_cache=False, past_key_values=None):
-        arm, _ = self.arm_von(self.reg[int(np.asarray(ids)[0, 0])])
-        h, _, _ = self._vorwaerts(arm)
+        arm, v = self.arm_von(self.reg[int(np.asarray(ids)[0, 0])])
+        h, _, _ = self._vorwaerts(arm, v)
         return types.SimpleNamespace(logits=t(np.array([[[h, 1., 2., 3., 4.]]])),
                                      past_key_values=object())
 
@@ -156,7 +161,7 @@ class Welt:
         b, L = np.asarray(input_ids).shape
         text = self.reg[int(np.asarray(input_ids)[0, 0])]
         arm, v = self.arm_von(text)
-        _, w_sig, w_pos = self._vorwaerts(arm)
+        _, w_sig, w_pos = self._vorwaerts(arm, v)
         aus = np.zeros((b, L + 1))
         aus[:, :L] = np.asarray(input_ids)
         for j in range(b):
@@ -236,7 +241,6 @@ def test_zelle_laeuft_durch(ergebnis):
 def test_praefixe_sind_noch_englisch(ergebnis):
     """Ein fremdschriftlicher Praefix waere die eigene Vorgabe."""
     _, ns = ergebnis
-    schrift = None
     for p in ns["STELLE_RESULTS"]["praefixe"]:
         assert len(p["text"]) == 100
         assert not re.search(r"[가-힯぀-ヿ]", p["text"]), p["text"][:40]
@@ -244,6 +248,59 @@ def test_praefixe_sind_noch_englisch(ergebnis):
     assert schrift("| 서비스 | 저장 공간 |") == "koreanisch"
     assert schrift("| Service | Storage |") == "latein:englisch"
     assert not ns["sauber"]("| 서비스 | 저장 공간 |")
+
+
+def test_alle_schriften_werden_erkannt(ergebnis):
+    """Der erste GPU-Lauf ist genau hier gescheitert: schrift() kannte nur
+       Kana, Hangul und Han, also fiel Kyrillisch auf 'latein:englisch' durch.
+       Zwei russische Praefixe kamen als 'noch englisch' durch die Ernte und
+       ihre 64 russischen Fortsetzungen wurden als Englisch gezaehlt - womit
+       die zwei extremsten HOHEN Praefixe in der NIEDRIGEN Gruppe landeten."""
+    _, ns = ergebnis
+    schrift, sauber, kippt = ns["schrift"], ns["sauber"], ns["kippt"]
+    RUSS = "| Облако (Local Name) | Лимит хранилища | Примерная цена |"
+    assert schrift(RUSS) == "kyrillisch", schrift(RUSS)
+    assert not sauber(RUSS), "russischer Praefix gilt als noch englisch"
+    assert kippt(RUSS), "russische Antwort zaehlt nicht als Kippen"
+    for text, erwartet in (
+            ("| Υπηρεσία | Όριο αποθήκευσης |", "griechisch"),
+            ("| שירות | מגבלת אחסון |", "hebraeisch"),
+            ("| الخدمة | حد التخزين |", "arabisch"),
+            ("| सेवा | भंडारण सीमा |", "devanagari"),
+            ("| บริการ | ขีดจำกัด |", "thai"),
+            ("| Ծառայություն | Պահեստ |", "armenisch")):
+        assert schrift(text) == erwartet, "%s -> %s" % (erwartet, schrift(text))
+        assert kippt(text) and not sauber(text)
+    # und Englisch bleibt Englisch
+    assert schrift("| Service | Storage Limit | Price |") == "latein:englisch"
+    assert sauber("| Service | Storage Limit | Price |")
+
+
+def test_kontrollquelle_ist_nicht_die_leere_menge(ergebnis):
+    """Im ersten Lauf war die Schnittmenge ueber zwoelf Praefixe leer, und die
+       Zufallskontrolle sperrte deshalb null Router-Plaetze."""
+    _, ns = ergebnis
+    haeufig, immer = ns["haeufig_aktiv"], ns["immer_aktiv"]
+    R = [[(0, 1), (0, 2)], [(0, 1), (0, 3)], [(0, 1), (0, 4)], [(0, 5), (0, 6)]]
+    assert immer(R) == [], "Testfall trifft den Fall nicht"
+    assert (0, 1) in haeufig(R, 0.5), haeufig(R, 0.5)
+    assert (0, 5) not in haeufig(R, 0.5)
+    assert haeufig([], 0.5) == []
+    # im Miniaturmodell ist die Schnittmenge ueber ALLE Praefixe leer, die
+    # Kontrollquelle trotzdem gefuellt - sonst faellt der Fehler nicht auf
+    assert ns["_immer_leer"] == 0, "Testfall trifft den leeren Schnitt nicht"
+    assert ns["STELLE_RESULTS"]["gemeinsam"] > 0
+
+
+def test_trennwerte_werden_ausgewiesen(ergebnis):
+    """Ohne die Verteilung ist ein Nullbefund nicht deutbar - man sieht nicht,
+       ob etwas knapp danebenlag."""
+    _, ns = ergebnis
+    stufen = ns["STELLE_RESULTS"]["trennwerte"]
+    assert [s for s, _ in stufen] == [1.0, 0.8, 0.67, 0.5]
+    zahlen = [n for _, n in stufen]
+    assert zahlen == sorted(zahlen), "Anzahl muss mit sinkender Schwelle steigen"
+    assert zahlen[0] >= NLAY
 
 
 def test_spreizung_erkannt(ergebnis):
