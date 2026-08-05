@@ -60,7 +60,7 @@ VOR = ("| Service %02d | Storage Limit | Monthly Pricing | Summary | Notes on th
        "\n| :--- | :--- | :--- | :--- | :--- |\n| Google Drive | 15 GB |")
 KO_TXT = " 구글 드라이브 | 15 GB | 무료 | 개인 사용자에게 적합 |"
 EN_TXT = " Google Drive | 15 GB | free tier | good for personal use |"
-VARIANTEN = 12
+VARIANTEN = 16
 HOCH = set(range(VARIANTEN // 2))
 
 
@@ -216,8 +216,8 @@ def lauf(startwert=3):
               unicodedata=unicodedata, random=random, np=np, glob=None, json=json,
               gc=gc, sys=sys, time=time,
               model=w, tokenizer=Tok(), PROMPTS={"p1": PROMPT}, ZIEL_ID="p1",
-              N_ERNTE=128, N_PRAEF=24, N_TEST=48, MAX_NEW=8, CHUNK=8, TEMP=1.0,
-              SEED=5, PERM=200, STELLE=100, K_PRAEF=VARIANTEN,
+              N_ERNTE=192, N_PRAEF=24, N_TEST=48, MAX_NEW=8, CHUNK=8, TEMP=1.0,
+              SEED=5, PERM=400, STELLE=100, K_PRAEF=VARIANTEN,
               wc_save=lambda name, obj: None, wc_save_all=lambda: None,
               RUN_OUT="/tmp")
     np.random.seed(startwert)
@@ -297,10 +297,24 @@ def test_trennwerte_werden_ausgewiesen(ergebnis):
        ob etwas knapp danebenlag."""
     _, ns = ergebnis
     stufen = ns["STELLE_RESULTS"]["trennwerte"]
-    assert [s for s, _ in stufen] == [1.0, 0.8, 0.67, 0.5]
+    assert [round(s, 4) for s, _ in stufen] == [1.0, 0.875, 0.75, 0.625]
     zahlen = [n for _, n in stufen]
     assert zahlen == sorted(zahlen), "Anzahl muss mit sinkender Schwelle steigen"
     assert zahlen[0] >= NLAY
+    # Stufen MUESSEN auf dem Raster liegen: bei 6 gegen 6 sind nur Vielfache
+    # von 1/6 erreichbar, und 0.67 liegt knapp ueber 4/6 = 0.6667. Der zweite
+    # GPU-Lauf hat genau so vier Trenner verloren.
+    r = ns["raster"]
+    assert abs(r(8, 8) - 1 / 8) < 1e-12
+    assert abs(r(4, 8) - 0.25) < 1e-12
+    for s_, _ in stufen:
+        k = s_ / r(8, 8)
+        assert abs(k - round(k)) < 1e-9, "Stufe %.4f liegt zwischen zwei Rasterpunkten" % s_
+    assert [round(x, 6) for x in ns["stufen_vom_raster"](6, 6)[:3]] == \
+        [1.0, round(5 / 6, 6), round(4 / 6, 6)]
+    # und die Routing-Mengen muessen mitgespeichert sein
+    rt = ns["STELLE_RESULTS"]["routing"]
+    assert len(rt) == VARIANTEN and all(len(r_) > 0 for r_ in rt)
 
 
 def test_spreizung_erkannt(ergebnis):
@@ -338,8 +352,21 @@ def test_aufloesung_wird_ausgewiesen(ergebnis):
     assert abs(ug(8, 4) - 2.0 / 70) < 1e-9
     assert abs(ug(12, 6) - 2.0 / 924) < 1e-12
     assert ug(6, 3) > 0.05, "bei sechs Praefixen muesste die Grenze zu grob sein"
+    # die gelockerte Schwelle macht den Nulltest stumpf - bei zwoelf Praefixen
+    # ist 4/6 nicht mehr brauchbar, bei sechzehn dagegen schon
+    assert ug(12, 6, 2 / 3) > 0.05, "4/6 bei 12 Praefixen muesste zu grob sein"
+    assert ug(12, 6, 5 / 6) < 0.05
+    assert ug(16, 8, 0.75) < 0.05
+    assert abs(ug(12, 6, 1.0) - ug(12, 6)) < 1e-12, "Vorgabe ist nicht mehr 1.0"
     assert N["untergrenze"] < 0.05
     assert N["p"] >= N["untergrenze"] - 1e-9, "p unter der eigenen Untergrenze"
+    # die ausgewiesene Grenze muss zur BENUTZTEN Schwelle gehoeren, nicht zu 1.0
+    schw = ns["STELLE_RESULTS"]["schwelle"]
+    n_h = sum(ns["STELLE_RESULTS"]["hoch"])
+    n_g = len(ns["STELLE_RESULTS"]["hoch"])
+    assert abs(N["untergrenze"] - ug(n_g, n_h, schw)) < 1e-12
+    assert N["untergrenze"] > ug(n_g, n_h, 1.0), \
+        "Grenze ist die von Schwelle 1.0 - die gelockerte Schwelle wird ignoriert"
     urteil = ns["urteil_stelle"]
     assert urteil(0.7, 6, 0.001, "senkt", "TRAEGT", 0.10) == "AUFLOESUNG-ZU-GROB"
     assert urteil(0.7, 6, 0.001, "senkt", "TRAEGT", 0.002) == "ENTSCHEIDUNGSSTELLE-TRAEGT"
