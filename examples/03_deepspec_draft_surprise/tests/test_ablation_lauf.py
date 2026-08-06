@@ -593,6 +593,42 @@ def test_zahlsperre_bricht_ab(zu_wenig):
     assert "ergebnis" not in R, "unter der Sperre wurde weitergerechnet"
 
 
+def test_wirkung_je_platz_ist_normiert(beide):
+    """Gleiche Rohwirkung bei doppelter Dosis muss den halben Wert ergeben -
+       sonst ist die Groesse keine Normierung, sondern nur eine Umbenennung
+       der Prozentpunkte. Ohne sie liesse sich der kleine Screen-Eingriff
+       nicht mit der viel groesseren Positivkontrolle vergleichen."""
+    _, ns = beide
+    wj = ns["wirkung_je_platz"]
+    assert wj(60, 30, 100, 200) == pytest.approx(2 * wj(60, 30, 100, 400))
+    assert wj(60, 30, 100, 100) == pytest.approx(30.0)
+    assert wj(60, 30, 100, 0) == 0.0
+    assert wj(60, 60, 100, 100) == 0.0
+
+
+def test_kandidaten_der_kontrolle(beide):
+    """Zwei Bedingungen an den Kandidatentopf der Zufallskontrolle, und beide
+       sind noetig:
+
+       Wer im Bezugsarm NIE feuert, laesst sich auch nicht sperren - eine
+       Kontrolle aus solchen Paaren waere gar kein Eingriff und wuerde jedes
+       'traegt' zu billig lizenzieren.
+       Und keine der gepruefigen Mengen darf hineinrutschen, sonst kontrolliert
+       sie sich selbst.
+
+       Direkt geprueft statt ueber die Miniaturwelt: dort feuert praktisch
+       jeder Experte irgendwann, und ein fehlender Filter waere an keinem
+       Ergebnis zu bemerken."""
+    _, ns = beide
+    kk = ns["kandidaten_kontrolle"]
+    z = collections.Counter({(0, 1): 5, (0, 2): 0, (0, 3): 7, (0, 4): 1, (0, 5): 0})
+    assert kk(z, []) == [(0, 1), (0, 3), (0, 4)]          # die Nullen fliegen raus
+    assert kk(z, [[(0, 3)]]) == [(0, 1), (0, 4)]
+    assert kk(z, [[(0, 3)], [(0, 1)]]) == [(0, 4)]
+    assert kk(z, [[(0, 1), (0, 3), (0, 4)]]) == []
+    assert kk(collections.Counter(), []) == []
+
+
 def test_keine_haken_haengen(beide):
     w, _ = beide
     offen = sum(len(w.schichten[l]._haken) for l in range(NLAY))
