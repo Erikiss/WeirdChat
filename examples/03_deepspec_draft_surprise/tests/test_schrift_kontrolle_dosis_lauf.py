@@ -503,3 +503,22 @@ def test_die_saat_wird_auch_wirklich_benutzt(ergebnis):
     seed = 5
     alt = {seed + f * (i + 1) for f in (101, 307, 401) for i in range(len(arme))}
     assert not (alt & benutzt), sorted(alt & benutzt)
+
+
+def test_parameterzeile_steht_vor_der_auswertung():
+    """WIEDERHOLUNG wird oben in DERSELBEN Zelle gesetzt - eine zweite
+       Codezelle wuerde das Notebook aus dem statischen Namenscheck fallen
+       lassen. Dann muss die Zuweisung aber auch VOR dem globals()-Zugriff
+       stehen, sonst liest der Lauf still die Vorgabe 0."""
+    with open(NB, encoding="utf-8") as f:
+        nb = json.load(f)
+    codezellen = [c for c in nb["cells"] if c.get("cell_type") == "code"]
+    assert len(codezellen) == 1, "die Zelle muss einzellig bleiben"
+    q = "".join(codezellen[0]["source"])
+    setzen = q.index("\nWIEDERHOLUNG = ")
+    lesen = q.index('WIEDERHOLUNG=int(globals().get("WIEDERHOLUNG"')
+    assert setzen < lesen, "Parameter steht hinter seiner Auswertung"
+    # und er muss ueberhaupt eine Zahl sein
+    zeile = [l for l in q.splitlines() if l.startswith("WIEDERHOLUNG = ")]
+    assert len(zeile) == 1, zeile
+    assert zeile[0].split("=")[1].strip().isdigit(), zeile
