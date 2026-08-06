@@ -319,6 +319,19 @@ def test_positivkontrolle_und_verdikt(ergebnis):
     assert R["k_zufall"] > R["k_trenner"], "Kontrolle senkt genauso stark"
 
 
+def test_nicht_gelaufene_arme_sind_nicht_null(ergebnis):
+    """Im ersten Lauf standen k_trenner=0 und p_trenner=1.0 im Ergebnis,
+       obwohl gar nichts maskiert wurde. Eine nie gemessene Zahl darf nicht
+       aussehen wie eine gemessene Null."""
+    _, ns = ergebnis
+    R = ns["PAAR2_RESULTS"]
+    if not R["trenner"]:
+        assert R["k_trenner"] is None and R["k_zufall"] is None
+        assert R["urteil_maske"] == "NICHT-GELAUFEN"
+    else:
+        assert isinstance(R["k_trenner"], int)
+
+
 def test_urteilsordnung(ergebnis):
     _, ns = ergebnis
     u = ns["urteil_paar2"]
@@ -349,6 +362,9 @@ def test_urteilsordnung(ergebnis):
     assert mit(untergrenze=0.20) == "AUFLOESUNG-ZU-GROB"
     assert mit(n_trenner=1) == "URSACHE-OHNE-ROUTER-SITZ"
     assert mit(u_maske="BLIND") == "URSACHE-OHNE-ROUTER-SITZ"
+    # laeuft der Maskenarm gar nicht - weil es nichts zu maskieren gibt -, ist
+    # das kein gemessenes Nein, aber dasselbe Urteil
+    assert mit(u_maske="NICHT-GELAUFEN") == "URSACHE-OHNE-ROUTER-SITZ"
     assert mit(p_trenner=0.400) == "TRENNER-ZUFAELLIG"
     assert mit(u_eich="KEIN-ABSTAND", u_pos="still", p_ab=0.9) == "EICHUNG-FEHLT"
 
