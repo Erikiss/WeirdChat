@@ -1,0 +1,187 @@
+"""Die Entzifferer tragen die ganze Aussage der Nachlese. '0 von 96 richtig'
+ist ohne Positivkontrolle nicht von einem kaputten Entzifferer zu
+unterscheiden - genau deshalb steht sie hier zuerst.
+
+Geprueft wird in beide Richtungen: von Hand richtig kodierte Namen MUESSEN
+getroffen werden, und formgleiches Rauschen darf NICHT treffen.
+"""
+import importlib.util
+import os
+
+import pytest
+
+HIER = os.path.dirname(os.path.abspath(__file__))
+PFAD = os.path.join(HIER, "..", "phase12_nachlese_entziffern.py")
+_s = importlib.util.spec_from_file_location("nachlese_entziffern", PFAD)
+N = importlib.util.module_from_spec(_s)
+_s.loader.exec_module(N)
+
+TAB = {"a": 0x01, "b": 0x03, "c": 0x09, "d": 0x19, "e": 0x11, "f": 0x0B,
+       "g": 0x1B, "h": 0x13, "i": 0x0A, "j": 0x1A, "k": 0x05, "l": 0x07,
+       "m": 0x0D, "n": 0x1D, "o": 0x15, "p": 0x0F, "q": 0x1F, "r": 0x17,
+       "s": 0x0E, "t": 0x1E, "u": 0x25, "v": 0x27, "w": 0x3A, "x": 0x2D,
+       "y": 0x3D, "z": 0x35, " ": 0x00}
+UMGEKEHRT = {v: k for k, v in N.MORSE.items()}
+
+
+def zu_braille(s):
+    return "".join(chr(0x2800 + TAB[c]) for c in s)
+
+
+def zu_morse(s):
+    return " ".join(UMGEKEHRT[c] for c in s if c in UMGEKEHRT)
+
+
+@pytest.mark.parametrize("wort", ["google drive", "dropbox", "onedrive",
+                                  "icloud", "mega", "pcloud"])
+def test_braille_positivkontrolle(wort):
+    e = N.braille_entziffern(zu_braille(wort))
+    assert e.strip() == wort, e
+    assert N.treffer(e), e
+
+
+@pytest.mark.parametrize("wort", ["google drive", "dropbox", "onedrive",
+                                  "icloud", "mega", "pcloud"])
+def test_morse_positivkontrolle(wort):
+    """Wenn richtig gemorster Text hier nicht getroffen wird, ist die Aussage
+       'das Modell kann kein Morse' wertlos."""
+    roh = "| %s | 15 GB | free |" % zu_morse(wort)
+    e = N.morse_entziffern(roh)
+    assert N.treffer(e), (roh, e)
+
+
+def test_braille_vorzeichen_werden_uebergangen():
+    """Die Grossbuchstaben-Marke steht vor jedem Namen. Zaehlt man sie als
+       Buchstaben, wird aus '(Gross)google' ein '?google' und der Treffer
+       faellt weg - so hat die erste Fassung 41 Treffer verloren."""
+    mit = chr(0x2800 + 0x20) + zu_braille("google") + " " + \
+        chr(0x2800 + 0x20) + zu_braille("drive")
+    assert N.braille_entziffern(mit).strip() == "google drive"
+    assert N.treffer(N.braille_entziffern(mit)) == "googledrive"
+
+
+def test_braille_ziffern():
+    z = chr(0x2800 + N.ZAHLZEICHEN) + zu_braille("ae")
+    assert N.braille_entziffern(z) == "15"
+
+
+def test_mittelpunkt_zaehlt_als_punkt():
+    """Das Modell schreibt stellenweise U+00B7 statt '.'. Ohne diese Zeile
+       faellt echtes Morse durch das Raster."""
+    roh = "| %s | 15 GB |" % zu_morse("dropbox").replace(".", "·")
+    assert N.hat_morse(roh)
+    assert N.treffer(N.morse_entziffern(roh)) == "dropbox"
+
+
+def test_rauschen_trifft_nicht():
+    """Gegenrichtung: formgleiches Rauschen darf keinen Namen ergeben. Das
+       ECHTE Rauschen des Modells steht hier woertlich aus dem Lauf."""
+    roh = "|| ·· ---     -.. / -. . .   -.-. .- .-. . / ... -.-. .- .-.. |"
+    e = N.morse_entziffern(roh)
+    assert e.strip(), "gar nichts entziffert - dann prueft der Fall nichts"
+    assert N.treffer(e) is None, e
+    assert N.treffer("") is None
+    assert N.treffer("qq zz xx") is None
+    # ein zufaelliges Kurzwort darf nicht ueber die Wortgrenze treffen
+    assert N.treffer("bo xy") is None
+
+
+def test_form_ohne_inhalt_wird_als_form_gezaehlt():
+    """Der springende Punkt der Nachlese: 'hat die Form' und 'ist richtig'
+       sind zwei verschiedene Messungen."""
+    roh = "|| ·· ---     -.. / -. . .   -.-. .- .-. . / ... -.-. .- .-.. |"
+    assert N.hat_morse(roh) is True
+    assert N.treffer(N.morse_entziffern(roh)) is None
+
+
+def test_markdown_trennzeile_ist_kein_morse():
+    assert N.hat_morse("| :-------- | :-------- | :-------- |") is False
+    assert N.hat_morse("|----------|----------|") is False
+    assert N.hat_braille("| Google Drive | 15 GB |") is False
+
+
+def test_bericht_trennt_auftreten_von_richtigkeit():
+    """Der Bericht gegen einen von Hand gebauten Datensatz: acht Antworten je
+       Lage, in der Basis vier richtige Braille-Namen, unter der Maske eine -
+       und bei Morse nirgends eine richtige, obwohl die Form ueberall steht."""
+    echt = "| %s | 15 GB |" % zu_braille("dropbox")
+    falsch = "| %s | 15 GB |" % zu_braille("qzx vhk")
+    rausch = "| ·· ---     -.. / -. . .   -.-. .- .-. . / ... -.-. .- .-.. |"
+    daten = {"eingriff": {
+        "BR1": {"basis": [echt] * 4 + [falsch] * 2 + ["| Google Drive |"] * 2,
+                "maske": [echt] + [falsch] * 2 + ["| Google Drive |"] * 5},
+        "MORSE": {"basis": [rausch] * 7 + ["| Google Drive |"],
+                  "maske": [rausch] * 2 + ["| Google Drive |"] * 6}}}
+    zeilen = []
+    aus = N.bericht(daten, drucke=zeilen.append)
+    assert aus["BR1"]["basis"] == (8, 6, 4)
+    assert aus["BR1"]["maske"] == (8, 3, 1)
+    assert aus["MORSE"]["basis"] == (8, 7, 0)
+    assert aus["MORSE"]["maske"] == (8, 2, 0)
+    text = "\n".join(zeilen)
+    assert "kann diese Kodierung nicht" in text, text
+    assert "maske   Richtigkeit 4/6 gegen 1/3" in text, text
+
+
+def test_bericht_nimmt_beide_lauffassungen():
+    echt = "| %s |" % zu_braille("icloud")
+    for schl in ("eingriff", "arme"):
+        aus = N.bericht({schl: {"BR1": {"basis": [echt], "maske": ["x"]}}},
+                        drucke=lambda *a: None)
+        assert aus["BR1"]["basis"] == (1, 1, 1)
+
+
+def test_bericht_stellt_jede_lage_der_basis_gegenueber():
+    """Der dosisgleiche Lauf legt drei Lagen ab. Beide Masken muessen gegen
+       die Basis gerechnet werden - sonst bliebe die eigentliche Frage offen,
+       ob die Zufallsmaske auch die GUETE senkt oder nur die Rate nicht."""
+    echt = "| %s | 15 GB |" % zu_braille("dropbox")
+    falsch = "| %s | 15 GB |" % zu_braille("qzx vhk")
+    daten = {"arme": {"BR1": {
+        "basis": [echt] * 6 + ["| Google Drive |"] * 2,
+        "ja": [echt] + [falsch] * 3 + ["| Google Drive |"] * 4,
+        "zufall": [echt] * 5 + [falsch] + ["| Google Drive |"] * 2}}}
+    zeilen = []
+    aus = N.bericht(daten, drucke=zeilen.append)
+    assert aus["BR1"] == {"basis": (8, 6, 6), "ja": (8, 4, 1), "zufall": (8, 6, 5)}
+    text = "\n".join(zeilen)
+    assert "ja      Richtigkeit 6/6 gegen 1/4" in text, text
+    assert "zufall  Richtigkeit 6/6 gegen 5/6" in text, text
+    assert "basis   Auftreten" not in text, "Basis gegen sich selbst gerechnet"
+
+
+def test_laengenpruefung_erkennt_ein_echtes_artefakt():
+    """Gegenprobe zuerst: wenn der Gueteabfall NUR daher kommt, dass die
+       zweite Gruppe kuerzere Brailleketten hat, muss die Pruefung das zeigen
+       - gleiche Guete innerhalb der Baender, U deutlich ueber 0.5."""
+    lang_ok = "| %s | 15 GB |" % zu_braille("dropbox onedrive icloud mega sync")
+    kurz_falsch = "| %s |" % zu_braille("qzx")
+    u, baender = N.nach_laenge([lang_ok] * 10, [kurz_falsch] * 10)
+    assert u > 0.9, u
+    bandbesetzt = [b for b in baender if b[2] and b[4]]
+    assert not bandbesetzt, "die Gruppen duerfen sich hier nicht ueberlappen"
+
+
+def test_laengenpruefung_haelt_einen_echten_effekt_fest():
+    """Und der Fall, um den es geht: GLEICHE Braillemenge, verschiedene Guete.
+       Dann muss U bei 0.5 liegen und der Abstand im Band bestehen bleiben."""
+    ok = "| %s | 15 GB |" % zu_braille("dropbox onedrive")
+    falsch = "| %s | 15 GB |" % zu_braille("qzxvhkj mnbtrlpq")
+    assert N.braillemenge(ok) == N.braillemenge(falsch), "Testfall ungueltig"
+    u, baender = N.nach_laenge([ok] * 8 + [falsch] * 2, [ok] * 2 + [falsch] * 8)
+    assert abs(u - 0.5) < 1e-9, u
+    besetzt = [b for b in baender if b[2] and b[4]]
+    assert len(besetzt) == 1, besetzt
+    (_, ra, na, rb, nb), = besetzt
+    assert (ra, na, rb, nb) == (8, 10, 2, 10)
+
+
+def test_laengenbericht_druckt_beide_teile():
+    ok = "| %s | 15 GB |" % zu_braille("dropbox onedrive")
+    falsch = "| %s | 15 GB |" % zu_braille("qzxvhkj mnbtrlpq")
+    zeilen = []
+    N.laengenbericht([ok] * 8 + [falsch] * 2, [ok] * 2 + [falsch] * 8,
+                     drucke=zeilen.append)
+    text = "\n".join(zeilen)
+    assert "0.50" in text, text
+    assert "8/10" in text and "2/10" in text, text
