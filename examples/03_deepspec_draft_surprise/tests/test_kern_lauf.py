@@ -30,7 +30,7 @@ import unicodedata
 import numpy as np
 import pytest
 
-from mini_torch import haken_traeger, mach_torch, silu, t
+from mini_torch import LETZTE_SAAT, haken_traeger, mach_torch, silu, t
 
 HIER = os.path.dirname(os.path.abspath(__file__))
 NB = os.path.join(HIER, "..", "phase18_kern.ipynb")
@@ -62,7 +62,7 @@ ZIELTEXT = {"NEU": "| Service | 15 GB |",
             "BR1": "| ⠛⠕⠕⠛⠇⠑ ⠙⠗⠊⠧⠑ | 15 GB |",
             "MORSE": "| --. --- --- --. .-.. . | 15 GB |"}
 FEHLTEXT = "| Service Name | Storage Limit | Price |"   # trifft kein Zielmass
-FEHLJEDES = 4   # jede vierte Antwort geht daneben - prueft den Zielmass-Filter
+FEHLJEDES = 3   # jede dritte Antwort geht daneben - prueft den Zielmass-Filter
 
 
 def koerper():
@@ -85,7 +85,7 @@ class Experten(Traeger):
 
 class Welt:
     def __init__(self, startwert=4711, n_traeger=1, traegt_menge=True,
-                 alle_gleich=False):
+                 alle_gleich=False, mit_partnern=True):
         rs = np.random.RandomState(startwert)
         self.schichten = {l: Experten(rs) for l in range(NLAY)}
         self.reg = []
@@ -93,6 +93,7 @@ class Welt:
         self.n_traeger = n_traeger
         self.traegt_menge = traegt_menge
         self.alle_gleich = alle_gleich
+        self.mit_partnern = mit_partnern
         self.gesperrt = set()
         self.zaehler = collections.Counter()
         self.grund = [0.05 + 3.0 * (i % 6 == 0) + 0.4 * (i % 3 == 0) for i in range(NEXP)]
@@ -102,13 +103,14 @@ class Welt:
         # die Stufenzahl stimmt. Wuerde eines uebersehen, verschoebe sich der
         # gemessene Anteil um ein Sechzehntel.
         for e in MENGE_EXP:
-            self.grund[e] = 6.0
+            self.grund[e] = 10.0
         # Ebenso viele FREMDE Experten mit derselben Rate. Ohne sie findet die
         # Ratenanpassung keine Partner: die Menge feuert dann weit ueber allem
         # anderen, und die Vergleichsmenge waere aus lauter seltenen Paaren
         # gebaut - eine Null fuer eine andere Haeufigkeit.
-        for e in PARTNER_EXP:
-            self.grund[e] = 6.0
+        if mit_partnern:
+            for e in PARTNER_EXP:
+                self.grund[e] = 10.0
 
     @staticmethod
     def arm_von(text):
@@ -220,7 +222,11 @@ class Welt:
         aus = np.zeros((b, L + 1))
         aus[:, :L] = np.asarray(input_ids)
         for j in range(b):
-            i = self.zaehler[schl]
+            # Die SAAT verschiebt das Muster. Ohne sie zoege jede Bedingung
+            # dieselbe Folge, und ob die Zelle je Paar neu saet, waere an
+            # keinem Ergebnis zu bemerken - ein Einzelscan mit EINER Saat fuer
+            # alle Paare saehe genauso aus wie einer mit 42 verschiedenen.
+            i = self.zaehler[schl] + LETZTE_SAAT[0] % FEHLJEDES
             self.zaehler[schl] += 1
             if i % FEHLJEDES == 0:
                 text = FEHLTEXT
@@ -258,8 +264,9 @@ class Welt:
 
 
 def lauf(n_traeger=1, traegt_menge=True, alle_gleich=False, wiederholung=0,
-         n_bsp=24, n_scan=20, n_abl=24):
-    w = Welt(n_traeger=n_traeger, traegt_menge=traegt_menge, alle_gleich=alle_gleich)
+         n_bsp=24, n_scan=20, n_abl=24, mit_partnern=True):
+    w = Welt(n_traeger=n_traeger, traegt_menge=traegt_menge, alle_gleich=alle_gleich,
+             mit_partnern=mit_partnern)
 
     class Tok:
         pad_token_id = 0
@@ -310,6 +317,14 @@ def verteilt():
 
 
 @pytest.fixture(scope="module")
+def ohne_partner():
+    """Keine fremden Experten mit aehnlicher Feuerrate. Dann laesst sich keine
+       Null bauen, die fuer dieselbe Haeufigkeit gilt - und der Lauf muss
+       abbrechen, statt gegen lauter seltene Paare zu messen."""
+    return lauf(mit_partnern=False)
+
+
+@pytest.fixture(scope="module")
 def tote_kette():
     return lauf(traegt_menge=False)
 
@@ -329,6 +344,7 @@ def test_menge_wird_selbst_hergeleitet(einer):
     ("dreie", "KLEINER-KERN"),
     ("verteilt", "KEIN-KERN"),
     ("tote_kette", "POSITIVKONTROLLE-FEHLT"),
+    ("ohne_partner", "KEINE-VERGLEICHSMENGE"),
 ])
 def test_alle_ausgaenge(request, welt, erwartet):
     """Jeder Ausgang muss erreichbar sein und der eingebauten Wahrheit
@@ -380,6 +396,50 @@ def test_lexikalische_arme_bleiben_still(request, welt):
         assert e["stufen"]["VOLL"]["k"] == e["k_basis"], (a, e["stufen"]["VOLL"])
 
 
+def test_guetesperre_bricht_ab(ohne_partner):
+    """Die Sperre ist keine Verzierung: greift sie, darf kein Ergebnis mehr
+       kommen. Ohne diese Welt waere sie nicht pruefbar - in allen anderen
+       gibt es fremde Paare mit derselben Rate, und die Anpassung ist immer
+       gut."""
+    _, ns = ohne_partner
+    R = ns["KERN_RESULTS"]
+    assert R["verdict"] == "KEINE-VERGLEICHSMENGE"
+    assert R["guete"] is not None and R["guete"] > 0.5, R["guete"]
+    assert "ergebnis" not in R, "unter der Sperre wurde weitergerechnet"
+
+
+def test_saat_haengt_am_paar(einer):
+    """Jeder Einzelscan muss eine EIGENE Saat bekommen. Mit einer Saat fuer
+       alle Paare zoege jede Bedingung dieselbe Folge, und der Scan maesse
+       42-mal dieselbe Stichprobe statt 42 verschiedene."""
+    _, ns = einer
+    R = ns["KERN_RESULTS"]
+    treffer = sorted(d["k"] for d in R["scan_innen"].values())
+    assert len(set(treffer)) > 2, treffer
+
+
+def test_scan_misst_ueber_prompt_und_antwort(einer):
+    """Die gesperrten Plaetze werden ueber DIESELBEN Texte gezaehlt, auf denen
+       auch die Bestaetigung laeuft - Prompt UND Antwort. Zaehlt der Scan nur
+       den Prompt, weicht die ausgewiesene Dosis von der wirklichen ab, ohne
+       dass eine der beiden Zahlen falsch aussieht."""
+    _, ns = einer
+    R = ns["KERN_RESULTS"]
+    for k, d in R["scan_innen"].items():
+        assert d["plaetze"] == R["plaetze_scanarm"][k], (k, d["plaetze"])
+        assert d["plaetze"] > 0, k
+
+
+def test_senkt_direkt(einer):
+    """Ein ANSTIEG ist keine Senkung, auch wenn er hochsignifikant ist."""
+    _, ns = einer
+    sk = ns["senkt"]
+    assert sk(40, 10, 0.001) == "TRAEGT"
+    assert sk(40, 10, 0.9) == "STILL"
+    assert sk(40, 40, 0.001) == "STILL"
+    assert sk(10, 40, 0.001) == "STILL"
+
+
 def test_scan_laeuft_auf_allen_paaren(einer):
     """Blind heisst: jedes Paar der Menge wird einzeln gemessen, keines
        uebersprungen. Sonst haenge das Ergebnis an einer Vorauswahl."""
@@ -424,6 +484,14 @@ def test_ratengleiche_direkt(einer):
     ag = ns["anpassungsguete"]
     assert ag(menge, raten, {(9, 3): 500.0}, q) == pytest.approx(4.0)
     assert ag(menge, raten, alle, p) < 0.06
+    # MEDIAN, nicht Mittel: ein einzelner Ausreisser darf eine sonst gute
+    # Anpassung nicht in die Sperre reissen. Mittel waere hier 3.34,
+    # Median 0.02.
+    m3 = [(0, 1), (0, 2), (0, 3)]
+    r3 = {(0, 1): 100.0, (0, 2): 100.0, (0, 3): 100.0}
+    a3 = {(8, 1): 100.0, (8, 2): 102.0, (8, 3): 1100.0}
+    p3 = {(0, 1): (8, 1), (0, 2): (8, 2), (0, 3): (8, 3)}
+    assert ag(m3, r3, a3, p3) == pytest.approx(0.02)
 
 
 def test_kern_aus_scan_direkt(einer):

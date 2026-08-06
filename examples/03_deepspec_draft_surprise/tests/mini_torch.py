@@ -89,13 +89,25 @@ class _NG:
         return False
 
 
+LETZTE_SAAT = [0]
+
+
+def _saat_merken(s):
+    LETZTE_SAAT[0] = int(s)
+    np.random.seed(int(s) % 2 ** 31)
+
+
 def mach_torch():
     """frischer Torch-Ersatz je Testlauf - kein geteilter Zustand"""
     return types.SimpleNamespace(
         nn=types.SimpleNamespace(functional=_FN),
         cuda=_CUDA,
         no_grad=lambda: _NG(),
-        manual_seed=lambda s: np.random.seed(s % 2 ** 31),
+        # Die Saat wird MITGESCHRIEBEN, nicht nur gesetzt. Eine Miniaturwelt
+        # zieht deterministisch und wuerde einen Saatfehler sonst nie
+        # bemerken: alle Bedingungen bekaemen dieselben Antworten, und ob die
+        # Zelle je Bedingung neu saet, waere an keinem Ergebnis zu sehen.
+        manual_seed=_saat_merken,
         tensor=lambda a, device=None, dtype=None: t(a),
         isin=lambda a, b: np.isin(np.asarray(a), np.asarray(b)),
         long="long",
