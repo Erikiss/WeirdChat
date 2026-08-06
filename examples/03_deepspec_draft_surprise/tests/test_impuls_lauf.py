@@ -253,15 +253,20 @@ class Welt:
             aus[j, L] = BASIS_ANTW + len(self.ausg) - 1
         return t(aus)
 
-    def tok(self, text, return_tensors=None, padding=False, add_special_tokens=True):
+    def tok(self, text, return_tensors=None, padding=False, add_special_tokens=True,
+            return_offsets_mapping=False):
         ts = [text] if isinstance(text, str) else list(text)
         self.reg.extend(ts)
         zeilen = []
+        versatz = []
         for j, tt in enumerate(ts):
             nr = BASIS_TEXT + len(self.reg) - len(ts) + j
-            _, antwort = self.zerlege(tt)
+            prompt, antwort = self.zerlege(tt)
             zeilen.append([nr] * POSITIONEN
                           + [self.zeichen_id(c) for c in antwort])
+            versatz.append([(0, 0)] * POSITIONEN
+                           + [(len(prompt) + i, len(prompt) + i + 1)
+                              for i in range(len(antwort))])
         breite = max(len(z) for z in zeilen)
         ids = np.zeros((len(ts), breite))
         for j, z in enumerate(zeilen):
@@ -276,14 +281,28 @@ class Welt:
             def input_ids(self):
                 return self["input_ids"]
 
-        return E({"input_ids": t(ids), "attention_mask": t(np.ones((len(ts), breite)))})
+        d = {"input_ids": t(ids), "attention_mask": t(np.ones((len(ts), breite)))}
+        if return_offsets_mapping:
+            om = np.zeros((len(ts), breite, 2))
+            for j, v in enumerate(versatz):
+                om[j, :len(v)] = v
+            d["offset_mapping"] = t(om)
+        return E(d)
 
     def decode(self, seq, skip_special_tokens=True):
+        """Ein EINZELNES Antworttoken decodiert absichtlich zu einem
+           Ersatzzeichen, wenn es zu einem mehrbytigen Zeichen gehoert - genau
+           wie bei Qwen, wo ein Braille-Zeichen auf drei Byte-Tokens faellt.
+           Ohne das koennte kein Test bemerken, ob die Zelle die Klassen ueber
+           die Zeichenpositionen bestimmt oder ueber decode() je Token."""
         a = np.asarray(seq).ravel().astype(int)
         if a.size == 0:
             return ""
         if int(a[-1]) >= BASIS_ANTW:
             return self.ausg[int(a[-1]) - BASIS_ANTW]
+        if a.size == 1:
+            c = self.zeichen_rueck.get(int(a[0]), "")
+            return "\ufffd" if len(c.encode()) > 1 else c
         return "".join(self.zeichen_rueck.get(int(x), "") for x in a)
 
 
@@ -508,6 +527,107 @@ def test_urteilsordnung_impuls(zufall):
     assert ui(d, A) == "KEIN-IMPULS"
     d["takt"]["BR1"] = True
     assert ui(d, A) == "GETAKTET"
+
+
+def test_klassen_ueber_zeichenpositionen(zeichen):
+    """Der Mock decodiert ein einzelnes Token eines mehrbytigen Zeichens zu
+       einem Ersatzzeichen - genau wie Qwen bei Braille. Bestimmt die Zelle
+       die Klassen ueber decode() je Token, landet die ganze Zielschrift in
+       'sonst', und die Zeichenbindung wird auf einer Klasse gemessen, die es
+       nicht gibt. Im ersten echten Lauf standen so 62 % der Braille-Antwort
+       unter 'sonst' und 'braille' auf 0 %."""
+    _, ns = zeichen
+    R = ns["IMPULS_RESULTS"]
+    assert R["klassen_genau"] is True
+    for a in R["konstruierend"]:
+        v = R["klassen_verteilung"][a]
+        ziel = ZIEL_KLASSE[a]
+        assert v[ziel] > 0, (a, ziel, v)
+        assert v[ziel] >= 0.1 * sum(v.values()), (a, ziel, v)
+
+
+def test_kofeuern_ist_normiert(zufall):
+    """Roh haengt jede Ueberlappung an den Raten: zwei haeufige Experten
+       treffen sich auch zufaellig oft."""
+    _, ns = zufall
+    km = ns["_kofeuer_matrix"]
+    X = np.zeros((2, 10))
+    X[0, :5] = 1.0
+    X[1, :5] = 1.0
+    M = km([X])
+    # beobachtet 5, erwartet 5*5/10 = 2.5 -> 2.0. Roh waere es 5.0
+    assert M[0, 1] == pytest.approx(2.0), M
+    Y = np.zeros((2, 10))
+    Y[0, :5] = 1.0
+    Y[1, 5:] = 1.0
+    assert km([Y])[0, 1] == pytest.approx(0.0)
+
+
+def test_gipfel_laesst_lag_eins_aus(zufall):
+    """Benachbarte Tokens haengen schon ueber den Text zusammen. Ein Gipfel
+       bei Lag 1 waere kein Takt."""
+    _, ns = zufall
+    gp = ns["_gipfel"]
+    A = np.array([[0.9, 0.1, 0.5, 0.2]])      # groesster Wert bei Lag 1
+    wert, lag = gp(A)
+    assert lag == 3 and wert == pytest.approx(0.5), (wert, lag)
+
+
+def test_abstaende_erst_ab_drei_treffern(zufall):
+    """Zwei Treffer liefern einen Abstand und damit keine Streuung. Wer sie
+       mitzaehlt, verduennt die Streuung mit lauter Einzelwerten."""
+    _, ns = zufall
+    ab = ns["_abstaende"]
+    X = np.zeros((2, 12))
+    X[0, [0, 3, 9]] = 1.0        # drei Treffer -> Abstaende 3 und 6
+    X[1, [0, 5]] = 1.0           # zwei Treffer -> faellt weg
+    assert sorted(ab(X).tolist()) == [3, 6], ab(X)
+
+
+def test_autokorrelation_ist_zentriert(zufall):
+    """Ohne Abzug des Mittelwerts misst die Groesse nur die Rate und ist immer
+       positiv - jeder Zug saehe periodisch aus."""
+    _, ns = zufall
+    ak = ns["_autokorr"]
+    X = np.zeros((1, 12))
+    X[0, ::2] = 1.0              # Periode 2
+    A = ak(X, 4)
+    assert A[0, 1] > 0.8, A      # Lag 2 stark positiv
+    assert A[0, 0] < 0.0, A      # Lag 1 negativ - nur mit Zentrierung
+    assert np.isnan(ak(np.ones((1, 12)), 3)).all()
+
+
+def test_ratengleiche_haelt_die_toleranz(zufall):
+    """Ohne Toleranz nimmt der Zieher irgendeinen Partner - und der Boden
+       misst dann eine andere Rate als die gepruefte Menge."""
+    _, ns = zufall
+    rg = ns["ratengleiche"]
+    menge = [(0, 1), (0, 2)]
+    raten = {(0, 1): 0.20, (0, 2): 0.20}
+    alle = {(0, 1): 0.20, (0, 2): 0.20, (9, 1): 0.21, (9, 2): 0.90, (9, 3): 0.01}
+    p = rg(menge, raten, alle, random.Random(1))
+    assert set(p.values()) <= {(9, 1)}, p
+    # gar kein Partner in Reichweite -> lieber keiner als ein falscher
+    assert rg(menge, raten, {(9, 2): 0.90}, random.Random(1)) == {}
+
+
+def test_tiefe_gegen_zeit_ist_normiert(zufall):
+    """Zwei Antworten verschiedener Laenge: ohne Normierung auf die
+       Antwortlaenge zaehlt die laengere staerker, und die Korrelation misst
+       die Laengenverteilung mit."""
+    _, ns = zufall
+    tz = ns["tiefe_gegen_zeit"]
+    namen = [(0, 0), (10, 0), (20, 0), (30, 0)]
+    kurz = np.zeros((4, 10))
+    lang = np.zeros((4, 100))
+    for i in range(4):
+        for X in (kurz, lang):
+            L = X.shape[1]
+            p = int((0.1 + 0.28 * i) * (L - 1))
+            X[i, max(0, p - 1):p + 2] = 1.0
+    d = tz([kurz, lang], namen, 40, random.Random(2))
+    assert d["rho"] == pytest.approx(1.0), d
+    assert d["n"] == 4
 
 
 def test_keine_haken_haengen(zufall):
