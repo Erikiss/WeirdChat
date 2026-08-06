@@ -266,6 +266,84 @@ to the ceiling; 4- or 5-digit operands with a 40–60% baseline would sharpen th
 bound in both directions. And a null on a transfer test says "no effect found",
 not "no effect".
 
+### Phases 14–15: a routing screen finds a different set, and it does nothing (2026-08-06)
+
+The set of 42 above comes from a **single-sample difference at one position**.
+An obvious worry: is that how you *should* look for a circuit? The method paper
+in `Erikiss/spectral-probe-circuits` proposes a different route — screen for
+**persistent selectivity over the whole answer**, calibrate a null per frequency
+stratum, then ablate the surviving set against a matched-random control. Phases
+14 and 15 port that recipe to a MoE router and run it end to end.
+
+**Phase 14 — the screen.** Selectivity is the firing rate in an arm divided by
+the rate in the English reference arm, with the null calibrated by splitting the
+reference arm against itself 200×, per log2 frequency stratum. A second floor is
+calibrated from **Serbian vs Russian** — two arms with different text and the
+same property — because surface-form differences alone selected a quarter of the
+model in the first attempt. The stricter of the two floors is used.
+
+| arm | pairs | max sel. | median |
+|---|---|---|---|
+| JA | 242 | 7727 | 142 |
+| SR | 242 | 7741 | 144 |
+| RU | 179 | 6965 | 128 |
+| BR1 | 581 | 5466 | 117 |
+| MORSE | 448 | 4889 | 109 |
+
+`JA & BR1 & MORSE` = 17 pairs; minus `SR & RU` = **8 pairs**. Label-shuffle null:
+0.0 expected, 17 observed, p = 0.0050 at the permutation floor. So the shared
+signature is real *as routing*.
+
+Two things are worth noting before the ablation. **Overlap with the 42 is zero**
+— Jaccard 0.000, not one shared expert. And the normalised pairwise similarity
+ranks Japanese with the Cyrillic arms, not with Braille and Morse:
+SR/RU 39.7× > BR1/MORSE 11.6× > JA/SR 7.5× > JA/RU 7.3× > … > JA/BR1 2.9× >
+JA/MORSE 1.7×. By persistent routing, Japanese is a *script* like Cyrillic. The
+grouping that Phase 12 found causally does not appear in the routing statistics.
+
+**Phase 15 — the ablation.** Four conditions, three matched on **expert count**:
+
+| arm | baseline | SCREEN (8) | P12-subset (8) | RANDOM (8) | ALL 42 |
+|---|---|---|---|---|---|
+| JA (kana) | 100 % | 100 % | 95 % | 97 % | **9 %** |
+| BR1 (braille) | 59 % | 47 % | 61 % | 66 % | **9 %** |
+| MORSE | 83 % | 84 % | 89 % | 89 % | **23 %** |
+| SR (cyrillic) | 86 % | 80 % | 81 % | 73 % | 84 % |
+| RU (cyrillic) | 98 % | 98 % | 98 % | 100 % | 100 % |
+
+The positive control is unambiguous: the full 42 collapse all three constructing
+arms (p < 10⁻⁴ each) and leave both Cyrillic arms untouched — a clean replication
+of Phase 12 inside this run. So the measurement chain works, and a null in the
+other columns is a null about the sets, not about the apparatus.
+
+**The 8 screen experts do nothing.** At Braille they occupy 2125 router slots —
+45 % of what the full 42 block — and the score moves 59 → 47 %, p = 0.21. At
+Morse, 1523 slots, 39 % of the control's dose, and nothing at all (p = 1.00).
+This is §9.2 of the method paper confirmed in a MoE: the spectral/selectivity
+signal alone is not a circuit finder. Persistent, highly selective, causally
+inert.
+
+**A random eighth of the 42 also does nothing** — at Japanese it blocks 4068
+slots, 24 % of the full set's dose, and the score stays at 95 % (p = 0.24).
+Verdict: `WIRKUNG-IST-VERTEILT`. The 42 are not 42 independent contributors;
+whatever they do survives the removal of a fifth to a quarter of it.
+
+**Caveats.** Count-matching trades one confound for another: eight experts do not
+block as many router slots as forty-two, so the null columns sit at 8–45 % of the
+positive control's dose depending on the arm. The screen null is reasonably
+strong for Braille and Morse (39–45 % of dose) and weak for Japanese (7.6 %). Only
+**one** random eighth was drawn, so "no eighth works" is not established — this
+particular eighth did not. And the two sets live in different parts of the model:
+the screen in layers [7, 14, 15, 17, 23, 24, 27], the 42 spread over 23 layers
+with two thirds in layers 30–39.
+
+**What this does not say.** It does not say the screen is worthless — it says a
+selectivity screen and a causal set are different objects in this model, which is
+exactly what the method paper warns about, and it says so with a working positive
+control in the same run rather than by assertion. The obvious follow-up is a
+dose–response curve inside the 42: block 8, 16, 24, 32, 42 and see whether the
+effect appears gradually or at a cliff.
+
 ### Notebooks
 
 `phase12_experten_maske` (router masking), `phase12_sprachkarte` (four arms,
@@ -276,4 +354,6 @@ overlap null), `phase12_entscheidungsstelle` (harvest at the decision point),
 an independent repeat), `phase12_nachlese_entziffern` (CPU-only: decodes Braille
 and Morse, with a decoder positive control that halts the run if it fails),
 `phase13_rechnen` (the same set on multiplication; `WIEDERHOLUNG` for an
-independent repeat).
+independent repeat), `phase14_screen` (routing-selectivity screen with two
+independently calibrated floors), `phase15_ablation` (four conditions matched on
+expert count, with the full 42 as a positive control that gates the verdict).
