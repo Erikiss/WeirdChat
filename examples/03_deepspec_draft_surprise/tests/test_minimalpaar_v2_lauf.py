@@ -322,28 +322,58 @@ def test_positivkontrolle_und_verdikt(ergebnis):
 def test_urteilsordnung(ergebnis):
     _, ns = ergebnis
     u = ns["urteil_paar2"]
-    G = dict(u_eich="ok", u_pos="senkt", p_rate=0.001, plus=8, n_paare=9,
-             n_trenner=6, p_trenner=0.001, untergrenze=0.004, u_maske="TRAEGT")
+    G = dict(u_eich="ok", u_pos="senkt", p_ab=0.031, mittel_ab=0.22, p_ai=0.0078,
+             mittel_ai=0.47, n_trenner=6, p_trenner=0.001, untergrenze=0.004,
+             u_maske="TRAEGT")
 
     def mit(**k):
         d = dict(G)
         d.update(k)
-        return u(d["u_eich"], d["u_pos"], d["p_rate"], d["plus"], d["n_paare"],
-                 d["n_trenner"], d["p_trenner"], d["untergrenze"], d["u_maske"])
+        return u(d["u_eich"], d["u_pos"], d["p_ab"], d["mittel_ab"], d["p_ai"],
+                 d["mittel_ai"], d["n_trenner"], d["p_trenner"], d["untergrenze"],
+                 d["u_maske"])
 
     assert mit() == "KOPFZEILE-IM-ROUTER"
     assert mit(u_eich="HOCH-REPRODUZIERT-NICHT") == "EICHUNG-FEHLT"
     assert mit(u_pos="still") == "MESSFELD-UNEMPFINDLICH"
-    assert mit(p_rate=0.400) == "KOPFZEILE-IST-MARKER"
-    # eine WIRKUNG IN DIE FALSCHE RICHTUNG darf nicht als Bestaetigung durchgehen
-    assert mit(plus=1) == "KOPFZEILE-IST-MARKER"
+    # NUR wenn BEIDE Kontraste stumm bleiben, ist die Zeichenfolge ein Marker.
+    # Der erste Lauf hat genau hier falsch etikettiert: A gegen B verfehlte 0.05
+    # (p=0.070 im Vorzeichentest), waehrend A gegen I bei 0.0078 lag.
+    assert mit(p_ab=0.400) == "KOPFZEILE-IM-ROUTER", \
+        "der Kontrast gegen die zweite Einfuegung wird ignoriert"
+    assert mit(p_ai=0.400) == "KOPFZEILE-IM-ROUTER"
+    assert mit(p_ab=0.400, p_ai=0.400) == "KOPFZEILE-IST-MARKER"
+    # und eine Wirkung in die FALSCHE Richtung zaehlt nicht
+    assert mit(p_ab=0.001, mittel_ab=-0.3, p_ai=0.400) == "KOPFZEILE-IST-MARKER"
+    assert mit(p_ai=0.001, mittel_ai=-0.3, p_ab=0.400) == "KOPFZEILE-IST-MARKER"
     assert mit(untergrenze=0.20) == "AUFLOESUNG-ZU-GROB"
     assert mit(n_trenner=1) == "URSACHE-OHNE-ROUTER-SITZ"
     assert mit(u_maske="BLIND") == "URSACHE-OHNE-ROUTER-SITZ"
     assert mit(p_trenner=0.400) == "TRENNER-ZUFAELLIG"
-    assert mit(u_maske="NUR-STOERUNG") == "NUR-STOERUNG"
-    # die Eichung steht VOR allem anderen
-    assert mit(u_eich="KEIN-ABSTAND", u_pos="still", p_rate=0.9) == "EICHUNG-FEHLT"
+    assert mit(u_eich="KEIN-ABSTAND", u_pos="still", p_ab=0.9) == "EICHUNG-FEHLT"
+
+
+def test_permutation_nutzt_die_groesse(ergebnis):
+    """Die Zahlen des ersten Laufs: der Vorzeichentest verfehlt 0.05, die
+       Permutation auf dem Mittel nicht. Sie ist deshalb die Hauptstatistik."""
+    _, ns = ergebnis
+    perm, vz = ns["perm_mittel"], ns["vorzeichentest"]
+    D = [25.0, 40.6, 25.0, 37.5, 56.2, 21.9, 15.6, -21.9, 0.0]
+    p_perm, mittel = perm(D)
+    p_vz = vz(D)[0]
+    assert abs(mittel - sum(D) / 9) < 1e-9
+    assert abs(p_perm - 16 / 512) < 1e-9, p_perm
+    assert abs(p_vz - 18 / 256) < 1e-9, p_vz
+    assert p_perm < 0.05 <= p_vz, "%.4f / %.4f" % (p_perm, p_vz)
+    # Randfaelle
+    assert perm([])[0] == 1.0
+    assert abs(perm([1.0] * 9)[0] - 2 / 512) < 1e-12
+    assert perm([0.0] * 5)[0] == 1.0
+    # symmetrisch im Vorzeichen
+    assert abs(perm(D)[0] - perm([-x for x in D])[0]) < 1e-12
+    R = ns["PAAR2_RESULTS"]
+    assert R["p_perm"] <= R["p_rate"] + 1e-9, "Permutation schwaecher als Vorzeichen"
+    assert "p_ai" in R and "mittel_ai" in R
 
 
 def test_routing_wird_gespeichert(ergebnis):
