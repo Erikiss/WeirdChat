@@ -195,7 +195,7 @@ class Welt:
         return self.ausg[int(a[-1])] if a.size else ""
 
 
-def lauf(startwert=4, bg=BG):
+def lauf(startwert=4, bg=BG, wiederholung=0):
     w = Welt(bg=bg)
 
     class Tok:
@@ -210,12 +210,16 @@ def lauf(startwert=4, bg=BG):
         def decode(self, *a, **k):
             return w.decode(*a, **k)
 
-    ns = dict(os=os, re=re, math=math, torch=mach_torch(), collections=collections,
+    tor = mach_torch()
+    saaten = []
+    _echt = tor.manual_seed
+    tor.manual_seed = (lambda x: (saaten.append(int(x)), _echt(x))[1])
+    ns = dict(os=os, re=re, math=math, torch=tor, collections=collections,
               unicodedata=unicodedata, random=random, np=np, glob=None, json=json,
               gc=gc, sys=sys, time=time,
               model=w, tokenizer=Tok(), PROMPTS={"p1": PROMPT}, ZIEL_ID="p1",
               N_PILOT=48, N_TEST=48, MAX_NEW=8, CHUNK=8, TEMP=1.0, SEED=5,
-              PERM=200, MINDEST=0.25,
+              PERM=200, MINDEST=0.25, WIEDERHOLUNG=wiederholung,
               wc_save=lambda name, obj: None, wc_save_all=lambda: None,
               RUN_OUT="/tmp")
     np.random.seed(startwert)
@@ -223,6 +227,7 @@ def lauf(startwert=4, bg=BG):
         exec(compile(koerper(), "phase12_schrift_kontrolle_dosis", "exec"), ns)
     except SystemExit:
         pass
+    ns["_SAATEN"] = saaten
     return w, ns
 
 
@@ -441,3 +446,60 @@ def test_karge_welt_wuerde_sonst_messen(karg):
     _, ns = karg
     P = ns["DOSIS_RESULTS"]["pilot"]
     assert P["JA"]["lebt"] and P["BR1"]["lebt"] and P["MORSE"]["lebt"]
+
+
+def test_saat_haengt_am_armnamen_nicht_an_der_position(ergebnis):
+    """Die alte Formel SEED+307*(i+1) haengt nur an der Position in der Liste.
+       Damit lieferten Pilot, Kontrolle und dosisgleicher Lauf fuer BR1
+       BITGLEICHE Maskengenerierungen - drei scheinbare Bestaetigungen, eine
+       Stichprobe. Jetzt muss jede (Zweck, Arm)-Kombination ihre eigene Saat
+       haben, und WIEDERHOLUNG muss alle verschieben."""
+    _, ns = ergebnis
+    saat = ns["saat"]
+    arme = [a for a, _, _, _ in ns["ARME"]]
+    alle = [saat(z, a) for z in ("basis", "ja", "zufall") for a in arme]
+    assert len(set(alle)) == len(alle), "zwei Saaten fallen zusammen"
+    # zwei Arme, die in einer anderen Liste die Plaetze tauschen wuerden,
+    # behalten hier ihre Saat
+    assert saat("ja", "BR1") != saat("ja", "MORSE")
+    assert saat("ja", "BR1") != saat("basis", "BR1")
+    assert saat("ja", "BR1") != saat("zufall", "BR1")
+    assert all(isinstance(x, int) and 0 <= x < 2 ** 31 for x in alle)
+
+
+def test_wiederholung_verschiebt_alles():
+    """WIEDERHOLUNG=1 muss ein echter zweiter Lauf sein: andere Saaten UND
+       eine neu gezogene Zufallsmenge. Sonst waere die Wiederholung wieder
+       nur dieselbe Stichprobe unter anderem Namen."""
+    _, a = lauf()
+    _, b = lauf(wiederholung=1)
+    for z in ("basis", "ja", "zufall"):
+        for arm in ("JA", "BR1", "MORSE"):
+            assert a["saat"](z, arm) != b["saat"](z, arm), (z, arm)
+    ja = {tuple(q) for q in a["DOSIS_RESULTS"]["ja_menge"]}
+    assert ja == {tuple(q) for q in b["DOSIS_RESULTS"]["ja_menge"]}, \
+        "die GEPRUEFTE Menge darf sich nicht mitverschieben"
+    za = {tuple(q) for q in a["DOSIS_RESULTS"]["zufall"]["BR1"]["paare"]}
+    zb = {tuple(q) for q in b["DOSIS_RESULTS"]["zufall"]["BR1"]["paare"]}
+    assert za != zb, "die Zufallsmenge wurde nicht neu gezogen"
+    assert a["DOSIS_RESULTS"]["wiederholung"] == 0
+    assert b["DOSIS_RESULTS"]["wiederholung"] == 1
+
+
+def test_die_saat_wird_auch_wirklich_benutzt(ergebnis):
+    """Nicht nur: saat() liefert gute Werte. Sondern: der Lauf ruft sie auch
+       auf. Sonst koennte die Positionsformel unbemerkt an den Ziehstellen
+       stehenbleiben - und genau dort hat sie den Schaden angerichtet."""
+    _, ns = ergebnis
+    saat, benutzt = ns["saat"], set(ns["_SAATEN"])
+    assert benutzt, "keine einzige Saat gesetzt"
+    arme = [a for a, _, _, _ in ns["ARME"]]
+    for arm in arme:
+        assert saat("basis", arm) in benutzt, "Basis-Saat von %s ungenutzt" % arm
+    for arm in ns["DOSIS_RESULTS"]["ergebnis"]:
+        assert saat("ja", arm) in benutzt, "JA-Saat von %s ungenutzt" % arm
+        assert saat("zufall", arm) in benutzt, "Zufalls-Saat von %s ungenutzt" % arm
+    # und die alte Positionsformel darf nirgends mehr auftauchen
+    seed = 5
+    alt = {seed + f * (i + 1) for f in (101, 307, 401) for i in range(len(arme))}
+    assert not (alt & benutzt), sorted(alt & benutzt)
