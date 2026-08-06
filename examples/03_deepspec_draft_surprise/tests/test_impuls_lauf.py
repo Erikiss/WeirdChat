@@ -33,6 +33,8 @@ import time
 import types
 import unicodedata
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -110,12 +112,15 @@ class Experten(Traeger):
 
 
 class Welt:
-    def __init__(self, startwert=4711, muster="zufall"):
+    def __init__(self, startwert=4711, muster="zufall", bezug_muster="zufall",
+                 ziel_selten=False):
         rs = np.random.RandomState(startwert)
         self.schichten = {l: Experten(rs) for l in range(NLAY)}
         self.reg = []
         self.ausg = []
         self.muster = muster
+        self.bezug_muster = bezug_muster
+        self.ziel_selten = ziel_selten
         self.zeichen = {}
         self.zeichen_rueck = {}
         self.zaehler = collections.Counter()
@@ -161,6 +166,11 @@ class Welt:
             return r.random() < (0.85 if klasse == ziel else 0.02)
         if muster == "schub":
             return r.random() < (0.85 if (p // BLOCK) % 3 == 0 else 0.02)
+        if muster == "schub_locker":
+            # Weitere Ballen: ebenfalls schubweise, aber mit schwaecherem
+            # Gipfel auf kurzen Abstaenden. So kann der Bezugsarm schubweise
+            # feuern, ohne das Muster der konstruierenden Arme zu decken.
+            return r.random() < (0.55 if (p // (BLOCK * 3)) % 2 == 0 else 0.06)
         if muster == "gruppe":
             # DERSELBE Wurf fuer alle Paare, auch ueber die Schichten hinweg -
             # sonst gaebe es je Schicht eine eigene Gruppe und nie eine, die
@@ -171,7 +181,7 @@ class Welt:
     def _idx(self, text, n_pos):
         arm = self.arm_von(text)
         prompt, antwort = self.zerlege(text)
-        muster = self.muster if arm in ("JA", "BR1", "MORSE") else "zufall"
+        muster = self.muster if arm in ("JA", "BR1", "MORSE") else self.bezug_muster
         ziel = ZIEL_KLASSE.get(arm, "latein")
         rest = [e for e in range(NEXP)
                 if e not in MENGE_EXP and e not in VERGL_EXP]
@@ -248,8 +258,15 @@ class Welt:
             # Die laufende Nummer macht jede Antwort zu einem EIGENEN Text.
             # Ohne sie routeten alle Beispiele eines Arms gleich, und jede
             # Nullverteilung fiele in sich zusammen.
-            self.ausg.append((FEHLTEXT if i % FEHLJEDES == 0 else ZIELTEXT[arm])
-                             + " #%d\n" % i)
+            text = FEHLTEXT if i % FEHLJEDES == 0 else ZIELTEXT[arm]
+            if self.ziel_selten and arm in ("JA", "BR1", "MORSE"):
+                # Die Zielschrift kommt fast nicht vor - genau die Lage, in
+                # der eine Anreicherung auf einer Handvoll Positionen gemessen
+                # wuerde. Die Mindestgrundrate muss das abfangen.
+                zk = ZIEL_KLASSE[arm]
+                text = "".join(c for c in text if klasse_von(c) != zk)
+                text = text + ZIELTEXT[arm][:1]
+            self.ausg.append(text + " #%d\n" % i)
             aus[j, L] = BASIS_ANTW + len(self.ausg) - 1
         return t(aus)
 
@@ -306,8 +323,9 @@ class Welt:
         return "".join(self.zeichen_rueck.get(int(x), "") for x in a)
 
 
-def lauf(muster="zufall", wiederholung=0, n_bsp=20, n_zug=8, perm=30, maxlag=8):
-    w = Welt(muster=muster)
+def lauf(muster="zufall", wiederholung=0, n_bsp=20, n_zug=8, perm=30, maxlag=8,
+         bezug_muster="zufall", ziel_selten=False):
+    w = Welt(muster=muster, bezug_muster=bezug_muster, ziel_selten=ziel_selten)
 
     class Tok:
         pad_token_id = 0
@@ -324,6 +342,7 @@ def lauf(muster="zufall", wiederholung=0, n_bsp=20, n_zug=8, perm=30, maxlag=8):
     ns = dict(os=os, re=re, math=math, torch=mach_torch(), collections=collections,
               unicodedata=unicodedata, random=random, np=np, glob=None, json=json,
               gc=gc, sys=sys, time=time, bisect=__import__("bisect"),
+              itertools=itertools,
               model=w, tokenizer=Tok(), PROMPTS={"p1": PROMPT}, ZIEL_ID="p1",
               N_BSP=n_bsp, N_ZUG=n_zug, PERM=perm, MAXLAG=maxlag, MAX_NEW=8,
               CHUNK=8, TEMP=1.0, SEED=5, MIN_BSP=6, MIN_LAENGE=20, MIN_ZUEGE=4,
@@ -364,6 +383,23 @@ def schub():
 @pytest.fixture(scope="module")
 def gruppe():
     return lauf("gruppe")
+
+
+@pytest.fixture(scope="module")
+def schub_alle():
+    """ALLE Arme feuern in Ballen, auch der Bezugsarm - genau die Lage im
+       echten Modell. Der Befund SCHUBWEISE ist dann nicht spezifisch, und ein
+       Takt darf erst recht nicht herauskommen."""
+    return lauf("schub", bezug_muster="schub_locker")
+
+
+@pytest.fixture(scope="module")
+def ziel_selten():
+    """Die Zielschrift kommt in der Antwort fast nicht vor. Ohne
+       Mindestgrundrate wuerde die Anreicherung auf einer Handvoll Positionen
+       gemessen - genau der Fall, der im ersten Lauf 2.30 fuer Braille ergab,
+       obwohl die Klasse bei 0 % stand."""
+    return lauf("zeichen", ziel_selten=True)
 
 
 def test_zelle_laeuft_durch(zufall):
