@@ -109,7 +109,7 @@ def test_zellen_sind_gueltiges_python(pfad):
 # phase12_tokenisierung beim zweiten Anlauf gestorben, weil der geerbte
 # Praeambel-Block den Lader mitbrachte.
 NUR_CPU = ["phase12_tokenisierung", "phase12_moltbook_basisrate",
-           "phase12_moe_diagnose"]
+           "phase12_moe_diagnose", "phase12_nachlese_entziffern"]
 VERBOTEN_AUF_CPU = ("AutoModelForCausalLM", "device_map=", "torch.cuda",
                     "cuda.mem_get_info")
 

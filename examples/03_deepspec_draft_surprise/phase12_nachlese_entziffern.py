@@ -187,21 +187,26 @@ def bericht(daten, drucke=print):
                    % (arm, lage, n, h, o, 100.0 * o / max(h, 1)))
         aus[arm] = lagen
         b = lagen.get("basis")
-        m = lagen.get("maske") or lagen.get("ja")
-        if b and m:
-            drucke("        Auftreten   %d/%d gegen %d/%d   p=%.5f"
-                   % (b[1], b[0], m[1], m[0], fisher2x2(m[1], m[0] - m[1],
-                                                        b[1], b[0] - b[1])))
+        if not b:
+            continue
+        for lage in sorted(k for k in lagen if k != "basis"):
+            # JEDE Lage gegen die Basis - beim dosisgleichen Lauf sind das zwei
+            # Kontraste, und genau ihr Unterschied ist die offene Frage: senkt
+            # die Zufallsmaske auch die GUETE, oder nur die Rate nicht?
+            m = lagen[lage]
+            drucke("        %-7s Auftreten   %d/%d gegen %d/%d   p=%.5f"
+                   % (lage, b[1], b[0], m[1], m[0],
+                      fisher2x2(m[1], m[0] - m[1], b[1], b[0] - b[1])))
             if b[2] or m[2]:
-                drucke("        Richtigkeit %d/%d gegen %d/%d   p=%.4f  (bedingt "
-                       "aufs Auftreten)"
-                       % (b[2], b[1], m[2], m[1], fisher2x2(m[2], m[1] - m[2],
-                                                            b[2], b[1] - b[2])))
+                drucke("        %-7s Richtigkeit %d/%d gegen %d/%d   p=%.4f  "
+                       "(bedingt aufs Auftreten)"
+                       % (lage, b[2], b[1], m[2], m[1],
+                          fisher2x2(m[2], m[1] - m[2], b[2], b[1] - b[2])))
             else:
-                drucke("        Richtigkeit 0 gegen 0 - das Modell kann diese "
-                       "Kodierung nicht.")
-                drucke("        Der Arm misst dann nur noch das VERSUCHEN, "
-                       "nicht das Koennen.")
+                drucke("        %-7s Richtigkeit 0 gegen 0 - das Modell kann "
+                       "diese Kodierung nicht." % lage)
+                drucke("                Der Arm misst dann nur noch das "
+                       "VERSUCHEN, nicht das Koennen.")
     return aus
 
 

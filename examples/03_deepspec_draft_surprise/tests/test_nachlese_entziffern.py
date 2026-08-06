@@ -120,7 +120,7 @@ def test_bericht_trennt_auftreten_von_richtigkeit():
     assert aus["MORSE"]["maske"] == (8, 2, 0)
     text = "\n".join(zeilen)
     assert "kann diese Kodierung nicht" in text, text
-    assert "Richtigkeit 4/6 gegen 1/3" in text, text
+    assert "maske   Richtigkeit 4/6 gegen 1/3" in text, text
 
 
 def test_bericht_nimmt_beide_lauffassungen():
@@ -129,3 +129,22 @@ def test_bericht_nimmt_beide_lauffassungen():
         aus = N.bericht({schl: {"BR1": {"basis": [echt], "maske": ["x"]}}},
                         drucke=lambda *a: None)
         assert aus["BR1"]["basis"] == (1, 1, 1)
+
+
+def test_bericht_stellt_jede_lage_der_basis_gegenueber():
+    """Der dosisgleiche Lauf legt drei Lagen ab. Beide Masken muessen gegen
+       die Basis gerechnet werden - sonst bliebe die eigentliche Frage offen,
+       ob die Zufallsmaske auch die GUETE senkt oder nur die Rate nicht."""
+    echt = "| %s | 15 GB |" % zu_braille("dropbox")
+    falsch = "| %s | 15 GB |" % zu_braille("qzx vhk")
+    daten = {"arme": {"BR1": {
+        "basis": [echt] * 6 + ["| Google Drive |"] * 2,
+        "ja": [echt] + [falsch] * 3 + ["| Google Drive |"] * 4,
+        "zufall": [echt] * 5 + [falsch] + ["| Google Drive |"] * 2}}}
+    zeilen = []
+    aus = N.bericht(daten, drucke=zeilen.append)
+    assert aus["BR1"] == {"basis": (8, 6, 6), "ja": (8, 4, 1), "zufall": (8, 6, 5)}
+    text = "\n".join(zeilen)
+    assert "ja      Richtigkeit 6/6 gegen 1/4" in text, text
+    assert "zufall  Richtigkeit 6/6 gegen 5/6" in text, text
+    assert "basis   Auftreten" not in text, "Basis gegen sich selbst gerechnet"
