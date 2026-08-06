@@ -9,10 +9,19 @@ das Ergebnis:
   P12_WIRK    routet gar nicht selektiv, traegt aber ebenfalls das Verhalten
 
 P12_WIRK bildet die Lage aus dem echten Lauf nach: die 42 aus Phase 12 sind
-kausal verifiziert und tauchen im Screen trotzdem nicht auf. Ueber
-schalter_screen und schalter_p12 laesst sich jede der beiden Wirkungen
-einzeln abschalten - damit sind alle vier Verdikte erreichbar und werden
-einzeln geprueft.
+kausal verifiziert und tauchen im Screen trotzdem nicht auf. Sie ist ECHT
+GROESSER als die Screen-Menge - anders liesse sich 'eine Teilmenge traegt'
+nicht von 'die ganze Menge traegt' unterscheiden, und genau diese Unterschei-
+dung ist der Zweck des Umbaus.
+
+Drei Stellschrauben spannen alle Ausgaenge auf:
+
+  schalter_screen   traegt KONSTRUKT das Verhalten?
+  schalter_p12      traegt P12_WIRK ueberhaupt?       -> Positivkontrolle
+  schwelle_p12      ab WIE VIELEN gesperrten Paaren aus P12_WIRK bricht es?
+                    1  = jedes Achtel genuegt
+                    9  = mehr als die angeglichene Zahl -> nur die VOLLE
+                         Menge wirkt, die Wirkung ist VERTEILT
 """
 import collections
 import gc
@@ -37,6 +46,7 @@ NB = os.path.join(HIER, "..", "phase15_ablation.ipynb")
 HID, INTER, NEXP, NLAY, TOPK = 6, 8, 96, 4, 4
 POSITIONEN = 40
 ANTWORT = 40
+ABLESEN = 16    # Positionen, ueber die generate() nachsieht, was gesperrt ist
 Traeger = haken_traeger()
 
 # Eingebaute Wahrheit. Drei Sorten Menge, und die dritte ist der Grund, warum
@@ -54,8 +64,11 @@ LEXIKAL = [(l, 17) for l in range(NLAY)]
 OBERFLAECHE = {a: [(l, e) for l in range(NLAY) for e in (30 + 2 * i, 31 + 2 * i)]
                for i, a in enumerate(("JA", "SR", "RU", "BR1", "MORSE"))}
 # Die zweite wirksame Menge: sie routet NICHT selektiv (kein Screen-Treffer),
-# traegt das Verhalten aber genauso. Genau die Lage aus dem echten Lauf.
-P12_WIRK = [(l, 41) for l in range(NLAY)] + [(l, 42) for l in range(NLAY)]
+# traegt das Verhalten aber genauso. Genau die Lage aus dem echten Lauf - und
+# mit 12 Paaren groesser als die 8 des Screens, damit eine Teilmenge von ihr
+# auch wirklich eine Teilmenge ist.
+P12_EXP = (41, 42, 43)
+P12_WIRK = [(l, e) for l in range(NLAY) for e in P12_EXP]
 
 PROMPT = ("Create a markdown table comparing five cloud storage services with their "
           "storage limits and pricing. label the column with each service's local "
@@ -92,7 +105,8 @@ class Experten(Traeger):
 
 class Welt:
     def __init__(self, startwert=4711, kern_staerke=8.0, ober_staerke=3.0,
-                 schalter_screen=True, schalter_p12=True):
+                 schalter_screen=True, schalter_p12=True, schwelle_p12=1,
+                 p12_exp=P12_EXP):
         rs = np.random.RandomState(startwert)
         self.schichten = {l: Experten(rs, self, l) for l in range(NLAY)}
         self.reg = []
@@ -102,9 +116,21 @@ class Welt:
         self.ober_staerke = ober_staerke
         self.schalter_screen = schalter_screen
         self.schalter_p12 = schalter_p12
+        self.schwelle_p12 = schwelle_p12
+        # Wie viele Experten unterscheiden die Entscheidungsstelle? Kleiner
+        # gesetzt wird die Vorgabe KLEINER als die Screen-Menge - dann laesst
+        # sich die Zahl gar nicht angleichen, und die Sperre muss greifen.
+        self.p12_exp = tuple(p12_exp)
         self.gesperrt = set()      # von der Maske gesetzt
         # sehr ungleiche Grundgewichte: der Kern der Pruefung
         self.grund = [0.05 + 3.0 * (i % 6 == 0) + 0.4 * (i % 3 == 0) for i in range(NEXP)]
+        # P12_WIRK laeuft in JEDEM Arm haeufig - deshalb ist es nicht selektiv
+        # und faellt durch den Screen. Genau das ist im echten Modell der Fall:
+        # die 42 feuern 84 bis 97 Plaetze auch dort, wo sie nichts zu tun
+        # haben. Nebeneffekt und Absicht: ein gesperrtes Paar wird dadurch
+        # zuverlaessig bemerkt, statt nur meistens.
+        for e in P12_EXP:
+            self.grund[e] = 8.0
 
     @staticmethod
     def arm_von(text):
@@ -148,7 +174,7 @@ class Welt:
            ein anderes Routing, und die geplante Dosis wurde auf einem
            Durchlauf berechnet und auf einem anderen nachgemessen - 62 gegen
            89 Plaetze, ohne dass eine der Zahlen falsch ausgesehen haette.
-           Dann haing die Saat nur am ARM: da alle Beispiele eines Arms
+           Dann hing die Saat nur am ARM: da alle Beispiele eines Arms
            denselben Text hatten, gab es innerhalb eines Arms ueberhaupt keine
            Streuung mehr, und die Nullkalibrierung fiel auf null zusammen.
 
@@ -173,7 +199,9 @@ class Welt:
             # Position. Deterministisch, damit die Differenz JA-minus-NEU
             # exakt P12_WIRK ergibt - im echten Modell ist das die Menge aus
             # Phase 12, und sie taucht im Screen nicht auf.
-            fest = [41, 42, 0, 1] if arm != "NEU" else [0, 1, 2, 3]
+            fremd = [e for e in range(NEXP) if e not in self.p12_exp]
+            fest = (list(self.p12_exp) + fremd)[:TOPK] if arm != "NEU" \
+                else fremd[:TOPK]
             return [[sorted(fest) for _ in range(NLAY)]]
         muster = []
         for p in range(n_pos):
@@ -235,9 +263,12 @@ class Welt:
         txt = self.reg[int(np.asarray(input_ids)[0, 0])]
         arm = self.arm_von(txt)
         # Vorwaertslauf, damit eine gesetzte Maske ueberhaupt sichtbar wird
-        self._fahre(arm, 8, txt)
+        self._fahre(arm, ABLESEN, txt)
         traf_screen = self.schalter_screen and bool(self.gesperrt & set(KONSTRUKT))
-        traf_p12 = self.schalter_p12 and bool(self.gesperrt & set(P12_WIRK))
+        # Wie VIELE Paare aus P12_WIRK sind gesperrt? Ueber die Schwelle
+        # trennt sich 'ein Achtel genuegt' von 'nur die ganze Menge wirkt'.
+        n_p12 = len(self.gesperrt & set(P12_WIRK))
+        traf_p12 = self.schalter_p12 and n_p12 >= self.schwelle_p12
         # Nur die KONSTRUIERENDEN Arme haengen an den beiden Mengen. Serbisch
         # und Russisch bleiben unberuehrt - genau das ist die Spezifitaet, die
         # Phase 12 gemessen hat, und ohne sie koennte kein Test bemerken, ob
@@ -280,7 +311,8 @@ class Welt:
 
 
 def lauf(startwert=4, kern_staerke=8.0, ober_staerke=3.0, wiederholung=0, n_bsp=48,
-         schalter_screen=True, schalter_p12=True, n_abl=48):
+         schalter_screen=True, schalter_p12=True, schwelle_p12=1, n_abl=48,
+         p12_exp=P12_EXP):
     """kern_staerke gegen ober_staerke ist die eigentliche Stellschraube.
 
        Ist der Oberflaecheneffekt so stark wie der Konstruktionseffekt, KANN
@@ -288,7 +320,8 @@ def lauf(startwert=4, kern_staerke=8.0, ober_staerke=3.0, wiederholung=0, n_bsp=
        nicht raten. Genau dieser Fall wird in test_oberflaeche_ueberdeckt_das
        geprueft, und genau er hat den ersten echten Lauf zerlegt."""
     w = Welt(kern_staerke=kern_staerke, ober_staerke=ober_staerke,
-             schalter_screen=schalter_screen, schalter_p12=schalter_p12)
+             schalter_screen=schalter_screen, schalter_p12=schalter_p12,
+             schwelle_p12=schwelle_p12, p12_exp=p12_exp)
 
     class Tok:
         pad_token_id = 0
@@ -321,26 +354,45 @@ def lauf(startwert=4, kern_staerke=8.0, ober_staerke=3.0, wiederholung=0, n_bsp=
 OBER_ALLE = set().union(*[set(v) for v in OBERFLAECHE.values()])
 KONSTR_ARME = ("JA", "BR1", "MORSE")
 LEX_ARME = ("SR", "RU")
+VERTEILT = 9    # mehr als die angeglichene Zahl (8) - keine Teilmenge erreicht sie
 
 
 @pytest.fixture(scope="module")
 def beide():
-    return lauf(schalter_screen=True, schalter_p12=True)
+    return lauf(schalter_screen=True, schalter_p12=True, schwelle_p12=1)
 
 
 @pytest.fixture(scope="module")
 def nur_screen():
-    return lauf(schalter_screen=True, schalter_p12=False)
+    """Der Screen traegt; von P12 wirkt nur die VOLLE Menge, kein Achtel."""
+    return lauf(schalter_screen=True, schalter_p12=True, schwelle_p12=VERTEILT)
 
 
 @pytest.fixture(scope="module")
 def nur_p12():
-    return lauf(schalter_screen=False, schalter_p12=True)
+    return lauf(schalter_screen=False, schalter_p12=True, schwelle_p12=1)
 
 
 @pytest.fixture(scope="module")
-def keine():
-    return lauf(schalter_screen=False, schalter_p12=False)
+def verteilt():
+    """Nur die volle Menge wirkt - weder der Screen noch ein Achtel der 42."""
+    return lauf(schalter_screen=False, schalter_p12=True, schwelle_p12=VERTEILT)
+
+
+@pytest.fixture(scope="module")
+def zu_wenig():
+    """Die Vorgabe hat WENIGER Paare als die Screen-Menge. Dann ist die Zahl
+       nicht anzugleichen, und der Lauf muss abbrechen statt vier ungleich
+       grosse Mengen gegeneinander zu stellen."""
+    return lauf(p12_exp=(41,))
+
+
+@pytest.fixture(scope="module")
+def tote_kette():
+    """Die Positivkontrolle wirkt nicht. schalter_screen bleibt AN - das
+       Verdikt muss trotzdem POSITIVKONTROLLE-FEHLT lauten, sonst steht die
+       Sperre nicht wirklich vorn."""
+    return lauf(schalter_screen=True, schalter_p12=False)
 
 
 def test_zelle_laeuft_durch(beide):
@@ -361,32 +413,69 @@ def test_beide_mengen_werden_selbst_hergeleitet(beide):
     assert screen <= set(KONSTRUKT), sorted(screen - set(KONSTRUKT))
     # und sie sind disjunkt - genau die Lage aus dem echten Lauf
     assert not (screen & p12), sorted(screen & p12)
+    # die Vorgabe muss ECHT groesser sein als die angeglichene Zahl, sonst
+    # waere 'Teilmenge' nur ein anderes Wort fuer 'ganze Menge'
+    assert len(p12) > len(screen), (len(p12), len(screen))
 
 
 @pytest.mark.parametrize("welt,erwartet", [
     ("beide", "BEIDE-TRAGEN"),
     ("nur_screen", "NUR-SCREEN-TRAEGT"),
     ("nur_p12", "NUR-P12-TRAEGT"),
-    ("keine", "KEINE-TRAEGT"),
+    ("verteilt", "WIRKUNG-IST-VERTEILT"),
+    ("tote_kette", "POSITIVKONTROLLE-FEHLT"),
+    ("zu_wenig", "ZAHL-NICHT-ANGEGLICHEN"),
 ])
-def test_alle_vier_verdikte(request, welt, erwartet):
-    """Alle vier Ausgaenge muessen erreichbar sein und dem entsprechen, was in
-       der Welt tatsaechlich wirkt. NUR-P12-TRAEGT ist der Fall, vor dem das
-       Quellpapier warnt: der Screen findet dann Korrelate statt Ursachen."""
+def test_alle_verdikte(request, welt, erwartet):
+    """Jeder Ausgang muss erreichbar sein und dem entsprechen, was in der Welt
+       tatsaechlich wirkt. NUR-P12-TRAEGT ist der Fall, vor dem das
+       Quellpapier warnt: der Screen findet dann Korrelate statt Ursachen.
+       WIRKUNG-IST-VERTEILT ist der Fall, den der erste Anlauf gar nicht
+       ausdruecken konnte."""
     _, ns = request.getfixturevalue(welt)
     assert ns["ABL_RESULTS"]["verdict"] == erwartet, ns["ABL_RESULTS"]["verdict"]
 
 
-@pytest.mark.parametrize("welt", ["beide", "nur_screen", "nur_p12", "keine"])
+def test_positivkontrolle_steht_vor_allem_anderen(tote_kette):
+    """In dieser Welt TRAEGT die Screen-Menge - und trotzdem darf das Verdikt
+       nichts anderes sagen als POSITIVKONTROLLE-FEHLT. Wirkt die Menge nicht,
+       von der man weiss, dass sie wirkt, misst nicht die Frage, sondern die
+       Messkette; alles darunter ist unlesbar.
+
+       Genau das fehlte im ersten Anlauf: alle Bedingungen blieben still, und
+       das Ergebnis liess sich nicht deuten."""
+    _, ns = tote_kette
+    R = ns["ABL_RESULTS"]
+    assert R["verdict"] == "POSITIVKONTROLLE-FEHLT"
+    traegt = sum(1 for a in KONSTR_ARME if R["je_screen"].get(a) in
+                 ("TRAEGT", "TRAEGT-UEBERWIEGEND"))
+    assert traegt >= 2, R["je_screen"]
+    for a in KONSTR_ARME:
+        assert R["je_voll"][a] == "STILL", (a, R["je_voll"][a])
+
+
+def test_volle_menge_traegt_in_den_lesbaren_welten(beide, nur_screen, nur_p12, verteilt):
+    """In jeder Welt, deren Verdikt eine Aussage ueber die Mengen macht, muss
+       die Positivkontrolle vorher getragen haben."""
+    for _, ns in (beide, nur_screen, nur_p12, verteilt):
+        R = ns["ABL_RESULTS"]
+        traegt = sum(1 for a in KONSTR_ARME if R["je_voll"].get(a) in
+                     ("TRAEGT", "TRAEGT-UEBERWIEGEND"))
+        assert traegt >= 2, (R["verdict"], R["je_voll"])
+
+
+@pytest.mark.parametrize("welt", ["beide", "nur_screen", "nur_p12", "verteilt",
+                                  "tote_kette"])
 def test_lexikalische_arme_bleiben_still(request, welt):
-    """In jeder der vier Welten haengen Serbisch und Russisch an keiner der
-       beiden Mengen. Faellt dort etwas, schadet der Eingriff wahllos - und
-       dann sagt keine Zeile mehr etwas."""
+    """In jeder Welt haengen Serbisch und Russisch an keiner der Mengen.
+       Faellt dort etwas, schadet der Eingriff wahllos - und dann sagt keine
+       Zeile mehr etwas. Auch die volle Menge darf sie nicht treffen."""
     _, ns = request.getfixturevalue(welt)
     R = ns["ABL_RESULTS"]
     for a in LEX_ARME:
         assert R["je_screen"][a] == "STILL", (a, R["je_screen"][a])
-        assert R["je_p12"][a] == "STILL", (a, R["je_p12"][a])
+        assert R["je_teil"][a] == "STILL", (a, R["je_teil"][a])
+        assert R["je_voll"][a] == "STILL", (a, R["je_voll"][a])
 
 
 def test_zufallskontrolle_wirkt_nie(beide):
@@ -394,60 +483,78 @@ def test_zufallskontrolle_wirkt_nie(beide):
        trotzdem, ist die Dosis selbst schaedlich und jedes 'traegt' waere
        ueberschaetzt."""
     _, ns = beide
-    for a, e in ns["ABL_RESULTS"]["ergebnis"].items():
-        assert e["k_zufall"] == e["k_basis"], (a, e["k_zufall"], e["k_basis"])
-        assert e["je_platz_zufall"] == 0.0, a
+    R = ns["ABL_RESULTS"]
+    zuf = {tuple(q) for q in R["zufall"]}
+    assert not (zuf & (set(KONSTRUKT) | set(P12_WIRK))), sorted(zuf)
+    for a, e in R["ergebnis"].items():
+        assert e["k"]["zufall"] == e["k_basis"], (a, e["k"], e["k_basis"])
+        assert e["je_platz"]["zufall"] == 0.0, a
 
 
-def test_dosis_der_zufallskontrolle_passt(beide):
-    """Zwei verschiedene Anforderungen, und das ist Absicht: die
-       Zufallskontrolle lizenziert jedes 'traegt' und muss genau passen; die
-       P12-Teilmenge kommt aus wenigen Kandidaten und wird ueber die Wirkung
-       je Platz gelesen."""
+def test_expertenzahl_ist_angeglichen(beide):
+    """Der eigentliche Umbau: verglichen wird acht gegen acht gegen acht
+       EXPERTEN. Der erste Anlauf hat auf Router-Plaetze angeglichen und die
+       P12-Teilmenge dadurch auf 7 % der wirksamen Dosis heruntergedreht."""
     _, ns = beide
     R = ns["ABL_RESULTS"]
-    assert R["dosis_ok"] is True
-    for a, d in R["dosis"].items():
-        if a not in R["ergebnis"]:
-            continue
-        e = R["ergebnis"][a]
-        # Geplant und gemessen muessen EXAKT uebereinstimmen: dieselben Texte,
+    n = R["n_gleich"]
+    assert n == len(R["screen_menge"])
+    assert len(R["p12_teil"]) == n, (n, len(R["p12_teil"]))
+    assert len(R["zufall"]) == n, (n, len(R["zufall"]))
+    assert R["zahl_ok"] is True
+    # und die Positivkontrolle ist bewusst NICHT angeglichen
+    assert len(R["p12"]) > n
+
+
+def test_platzzahl_wird_ausgewiesen(beide):
+    """Gleich viele Experten heisst NICHT gleich viele Plaetze. Faellt die
+       Platzzahl unter den Tisch, koennte ein Unterschied zwischen zwei gleich
+       grossen Mengen heimlich ein Dosisunterschied sein. Sie muss also
+       gemessen, berichtet und je Platz normiert werden."""
+    _, ns = beide
+    R = ns["ABL_RESULTS"]
+    for a, e in R["ergebnis"].items():
+        for nm in ("screen", "p12_teil", "zufall", "p12_voll"):
+            assert e["plaetze"][nm] > 0, (a, nm)
+            assert nm in e["je_platz"], (a, nm)
+        # geplant und gemessen muessen EXAKT uebereinstimmen: dieselben Texte,
         # deterministisches Routing. Jede Abweichung hiesse, dass die
         # Angleichung auf anderen Daten stattfand als die Messung.
-        assert e["plaetze"]["screen"] == d["ziel"], (a, e["plaetze"], d["ziel"])
-        assert e["plaetze"]["zufall"] == d["ziel_zufall"], (a, e["plaetze"])
-        assert e["plaetze"]["screen"] > 0 and e["plaetze"]["p12"] > 0
+        for nm in ("screen", "p12_teil", "zufall", "p12_voll"):
+            assert e["plaetze"][nm] == R["plaetze_geplant"][a][nm], (a, nm)
+        # die volle Menge sperrt mehr als ihre Teilmenge - sonst waere sie
+        # keine Positivkontrolle, sondern dieselbe Bedingung zweimal
+        assert e["plaetze"]["p12_voll"] > e["plaetze"]["p12_teil"], a
 
 
 def test_teilmenge_kommt_aus_der_vorgabe(beide):
-    """dosisgleich_aus() darf nur aus den uebergebenen Kandidaten waehlen -
+    """teilmenge_zahl() darf nur aus den uebergebenen Kandidaten waehlen -
        sonst waere die 'P12-Teilmenge' gar keine."""
     _, ns = beide
     R = ns["ABL_RESULTS"]
     p12 = {tuple(q) for q in R["p12"]}
-    for a, d in R["dosis"].items():
-        teil = {tuple(q) for q in d["p12"]}
-        assert teil <= p12, sorted(teil - p12)
-        zuf = {tuple(q) for q in d["zufall"]}
-        assert not (zuf & p12) and not (zuf & {tuple(q) for q in R["screen_menge"]})
+    teil = {tuple(q) for q in R["p12_teil"]}
+    assert teil < p12, sorted(teil - p12)
+    zuf = {tuple(q) for q in R["zufall"]}
+    assert not (zuf & p12) and not (zuf & {tuple(q) for q in R["screen_menge"]})
 
 
-def test_dosisgleich_aus_trifft_so_gut_es_geht(beide):
-    """Aus wenigen Kandidaten mit sehr ungleichen Haeufigkeiten ist ein enges
-       Fenster oft unerreichbar. Der Zieher muss dann die beste Naeherung
-       liefern statt leer zurueckzugeben - und darf nie etwas Fremdes waehlen."""
+def test_teilmenge_zahl_zieht_genau_n(beide):
+    """Angeglichen wird die ZAHL. Der Zieher muss genau n liefern, nie etwas
+       Fremdes waehlen und bei zu wenigen Kandidaten alles nehmen statt leer
+       zurueckzugeben."""
     _, ns = beide
-    dg = ns["dosisgleich_aus"]
-    z = collections.Counter({(0, 1): 100, (0, 2): 100, (0, 3): 7, (0, 9): 5000})
-    menge, summe = dg([(0, 1), (0, 2), (0, 3)], 200, z, random.Random(4))
-    assert summe == 200 and sorted(menge) == [(0, 1), (0, 2)]
-    # unerreichbar: beste Naeherung statt leer
-    menge, summe = dg([(0, 3)], 200, z, random.Random(4))
-    assert menge == [(0, 3)] and summe == 7
-    # nichts Fremdes, auch wenn es besser passen wuerde
-    assert (0, 9) not in dg([(0, 1), (0, 3)], 5000, z, random.Random(4))[0]
-    assert dg([], 200, z, random.Random(4)) == ([], 0)
-    assert dg([(0, 1)], 0, z, random.Random(4)) == ([], 0)
+    tz = ns["teilmenge_zahl"]
+    kand = [(0, i) for i in range(10)]
+    m = tz(kand, 4, random.Random(1))
+    assert len(m) == 4 and set(m) <= set(kand) and m == sorted(m)
+    # zwei verschiedene Zufallsquellen ziehen verschieden - sonst waere die
+    # 'zufaellige' Teilmenge in Wahrheit fest
+    andere = [tz(kand, 4, random.Random(s)) for s in range(12)]
+    assert len({tuple(x) for x in andere}) > 1
+    assert tz(kand, 99, random.Random(1)) == sorted(kand)     # alles, nicht leer
+    assert tz([], 4, random.Random(1)) == []
+    assert tz(kand, 0, random.Random(1)) == []
 
 
 def test_urteilsordnung_ablation(beide):
@@ -455,43 +562,41 @@ def test_urteilsordnung_ablation(beide):
     ua = ns["urteil_ablation"]
     T = {a: "TRAEGT" for a in KONSTR_ARME}
     S = {a: "STILL" for a in KONSTR_ARME}
-    assert ua(T, T, True, 8) == "BEIDE-TRAGEN"
-    assert ua(T, S, True, 8) == "NUR-SCREEN-TRAEGT"
-    assert ua(S, T, True, 8) == "NUR-P12-TRAEGT"
-    assert ua(S, S, True, 8) == "KEINE-TRAEGT"
-    # die Sperren kommen davor
-    assert ua(T, T, False, 8) == "DOSIS-NICHT-ANGEGLICHEN"
-    assert ua(T, T, True, 2) == "SCREEN-MENGE-ZU-KLEIN"
+    assert ua(T, T, T, True, 8) == "BEIDE-TRAGEN"
+    assert ua(T, S, T, True, 8) == "NUR-SCREEN-TRAEGT"
+    assert ua(S, T, T, True, 8) == "NUR-P12-TRAEGT"
+    assert ua(S, S, T, True, 8) == "WIRKUNG-IST-VERTEILT"
+    # die Positivkontrolle sticht ALLES - auch ein 'beide tragen'
+    assert ua(T, T, S, True, 8) == "POSITIVKONTROLLE-FEHLT"
+    # und die Sperren kommen noch davor
+    assert ua(T, T, T, False, 8) == "ZAHL-NICHT-ANGEGLICHEN"
+    assert ua(T, T, T, True, 2) == "SCREEN-MENGE-ZU-KLEIN"
     # ein einzelner Treffer unter dreien ist kein Befund
     einer = dict(S, JA="TRAEGT")
-    assert ua(einer, S, True, 8) == "KEINE-TRAEGT"
+    assert ua(einer, S, T, True, 8) == "WIRKUNG-IST-VERTEILT"
     zwei = dict(S, JA="TRAEGT", BR1="TRAEGT-UEBERWIEGEND")
-    assert ua(zwei, S, True, 8) == "NUR-SCREEN-TRAEGT"
+    assert ua(zwei, S, T, True, 8) == "NUR-SCREEN-TRAEGT"
+    # dieselbe Mehrheitsregel gilt fuer die Positivkontrolle selbst
+    assert ua(T, T, einer, True, 8) == "POSITIVKONTROLLE-FEHLT"
+    assert ua(T, T, zwei, True, 8) == "BEIDE-TRAGEN"
+
+
+def test_zahlsperre_bricht_ab(zu_wenig):
+    """Die Sperre ist keine Verzierung: greift sie, darf kein Ergebnis mehr
+       kommen. Im ersten Anlauf war eine solche Sperre nur ein Verdikt-Code
+       ohne Folgen, und der Lauf rechnete darunter munter weiter."""
+    _, ns = zu_wenig
+    R = ns["ABL_RESULTS"]
+    assert R["verdict"] == "ZAHL-NICHT-ANGEGLICHEN"
+    assert R["zahl_ok"] is False
+    assert len(R["p12"]) < len(R["screen_menge"]), (R["p12"], R["screen_menge"])
+    assert "ergebnis" not in R, "unter der Sperre wurde weitergerechnet"
 
 
 def test_keine_haken_haengen(beide):
     w, _ = beide
     offen = sum(len(w.schichten[l]._haken) for l in range(NLAY))
     assert offen == 0, "%d Haken nicht entfernt" % offen
-
-
-def test_p12_wird_wirklich_verkleinert(beide):
-    """Die Teilmenge muss NAEHER am Ziel liegen als die ganze P12 - sonst ist
-       sie keine Angleichung, sondern nur ein anderer Name fuer dieselbe
-       Menge. Und sie muss echt kleiner sein."""
-    _, ns = beide
-    R = ns["ABL_RESULTS"]
-    voll = len(R["p12"])
-    besser = 0
-    for a, d in R["dosis"].items():
-        if a not in R["ergebnis"]:
-            continue
-        assert len(d["p12"]) <= voll, a
-        assert abs(d["ziel_p12"] - d["ziel"]) <= abs(d["p12_voll"] - d["ziel"]), \
-            (a, d["ziel"], d["ziel_p12"], d["p12_voll"])
-        if len(d["p12"]) < voll:
-            besser += 1
-    assert besser >= 1, "die Teilmenge ist nirgends kleiner als die ganze Menge"
 
 
 def test_armurteil_direkt(beide):
