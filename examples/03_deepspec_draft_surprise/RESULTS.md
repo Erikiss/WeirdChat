@@ -199,10 +199,10 @@ it: pure ASCII, no script change, and the willingness still depends on the same
 
 ### Caveats
 
-- **One prompt.** The set is defined on a single prompt and probed with variants
-  of the same task. Whether the same 42 experts carry character-wise construction
-  in an unrelated task is untested, and this is the largest limitation here —
-  larger than any p-value above.
+- **One prompt for the positive results.** The set is defined on a single prompt
+  and every arm above is a variant of the same task. The transfer test is now
+  run (see the phase 13 subsection) and it came back negative, which bounds the
+  claim rather than extending it.
 - **The random control is not perfectly inert.** Of ten random contrasts (5 arms
   x 2 runs), the smallest is p = 0.0069 (Serbian, run 1) with Braille at p =
   0.055. Under a global null the chance of a minimum that small is 0.066 —
@@ -222,6 +222,50 @@ it: pure ASCII, no script change, and the willingness still depends on the same
   construction as such — which is the hypothesis, not an independent check.
 - Same FP8-dequantizes-to-bf16 caveat as above; on A100 this is bf16 compute.
 
+### Phase 13: the same set on multiplication (2026-08-06)
+
+The obvious way to widen the claim is to put the same 42 experts on a task with
+nothing to do with storage services. Multiplication is the principled choice, not
+an arbitrary one: `47*83` has no lexical entry any more than `⠛⠕⠕⠛⠇⠑` does, so it
+sits on the same retrieval-vs-construction axis that separated Cyrillic from
+Braille. (Prompted by a LessWrong write-up of digit-wise multiplication in Qwen
+2.5 7B — a different generation and a dense model, so only the task was borrowed,
+not the finding. Our model does tokenize digits singly too: `110848` is six
+tokens.)
+
+Four tasks, 64 problems each, greedy decoding, three conditions, dose matched over
+router slots as before. Pre-registered gate, inverted from phase 12: capital-city
+retrieval must *survive* the tested mask, or nothing else counts.
+
+| task | baseline | tested mask | dose-matched random |
+|---|---|---|---|
+| capitals (retrieval) | 100% | 100% | 100% |
+| 1x1 digit (retrieval) | 100% | 100% | 100% |
+| 2x2 digit | 100% | 100% | 100% |
+| 3x3 digit | 93.8% | 92.2% | 93.8% |
+
+All four `STILL`; per-digit accuracy unchanged (96.5% vs 96.0% on 3x3). This is a
+tight null, not an underpowered one: at 64/64 under the mask the Wilson lower
+bound is 94.3%, so any drop above **5.7 points** is excluded, against the **54–82
+points** the same set produces on Japanese, Braille and Morse. The experts are not
+idle during arithmetic either — they occupy 84–97 router slots per prompt, a
+higher density than on the (much longer) storage prompt. They are active and
+irrelevant.
+
+**Consequence for the description above.** "No lexical template" was too wide:
+`168` has none and does not fall. The defensible formulation is narrower —
+**transcoding a known string into another symbol system, character by character.**
+The content is fixed and only the symbol system changes. `Гугл драјв` is a
+different word, not a transcoding; `47*83` is an unknown value, not a
+transcoding. "Both are stepwise" does not create a shared mechanism.
+
+Caveats specific to this run: 2x2 multiplication at 64/64 is plausibly retrieval
+itself, so 3x3 is the only genuine construction arm and it carries the weakest
+bound (drops above 10.8 points excluded). Greedy decoding pins three of four arms
+to the ceiling; 4- or 5-digit operands with a 40–60% baseline would sharpen the
+bound in both directions. And a null on a transfer test says "no effect found",
+not "no effect".
+
 ### Notebooks
 
 `phase12_experten_maske` (router masking), `phase12_sprachkarte` (four arms,
@@ -230,4 +274,6 @@ overlap null), `phase12_entscheidungsstelle` (harvest at the decision point),
 `phase12_schrift_gegen_sprache` (Braille/Morse/romaji pilot),
 `phase12_schrift_kontrolle_dosis` (dose-matched control; set `WIEDERHOLUNG` for
 an independent repeat), `phase12_nachlese_entziffern` (CPU-only: decodes Braille
-and Morse, with a decoder positive control that halts the run if it fails).
+and Morse, with a decoder positive control that halts the run if it fails),
+`phase13_rechnen` (the same set on multiplication; `WIEDERHOLUNG` for an
+independent repeat).
