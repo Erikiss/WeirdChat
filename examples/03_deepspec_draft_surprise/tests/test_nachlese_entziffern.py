@@ -148,3 +148,40 @@ def test_bericht_stellt_jede_lage_der_basis_gegenueber():
     assert "ja      Richtigkeit 6/6 gegen 1/4" in text, text
     assert "zufall  Richtigkeit 6/6 gegen 5/6" in text, text
     assert "basis   Auftreten" not in text, "Basis gegen sich selbst gerechnet"
+
+
+def test_laengenpruefung_erkennt_ein_echtes_artefakt():
+    """Gegenprobe zuerst: wenn der Gueteabfall NUR daher kommt, dass die
+       zweite Gruppe kuerzere Brailleketten hat, muss die Pruefung das zeigen
+       - gleiche Guete innerhalb der Baender, U deutlich ueber 0.5."""
+    lang_ok = "| %s | 15 GB |" % zu_braille("dropbox onedrive icloud mega sync")
+    kurz_falsch = "| %s |" % zu_braille("qzx")
+    u, baender = N.nach_laenge([lang_ok] * 10, [kurz_falsch] * 10)
+    assert u > 0.9, u
+    bandbesetzt = [b for b in baender if b[2] and b[4]]
+    assert not bandbesetzt, "die Gruppen duerfen sich hier nicht ueberlappen"
+
+
+def test_laengenpruefung_haelt_einen_echten_effekt_fest():
+    """Und der Fall, um den es geht: GLEICHE Braillemenge, verschiedene Guete.
+       Dann muss U bei 0.5 liegen und der Abstand im Band bestehen bleiben."""
+    ok = "| %s | 15 GB |" % zu_braille("dropbox onedrive")
+    falsch = "| %s | 15 GB |" % zu_braille("qzxvhkj mnbtrlpq")
+    assert N.braillemenge(ok) == N.braillemenge(falsch), "Testfall ungueltig"
+    u, baender = N.nach_laenge([ok] * 8 + [falsch] * 2, [ok] * 2 + [falsch] * 8)
+    assert abs(u - 0.5) < 1e-9, u
+    besetzt = [b for b in baender if b[2] and b[4]]
+    assert len(besetzt) == 1, besetzt
+    (_, ra, na, rb, nb), = besetzt
+    assert (ra, na, rb, nb) == (8, 10, 2, 10)
+
+
+def test_laengenbericht_druckt_beide_teile():
+    ok = "| %s | 15 GB |" % zu_braille("dropbox onedrive")
+    falsch = "| %s | 15 GB |" % zu_braille("qzxvhkj mnbtrlpq")
+    zeilen = []
+    N.laengenbericht([ok] * 8 + [falsch] * 2, [ok] * 2 + [falsch] * 8,
+                     drucke=zeilen.append)
+    text = "\n".join(zeilen)
+    assert "0.50" in text, text
+    assert "8/10" in text and "2/10" in text, text

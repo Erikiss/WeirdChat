@@ -210,6 +210,59 @@ def bericht(daten, drucke=print):
     return aus
 
 
+def braillemenge(t):
+    return sum(1 for c in t if 0x2800 <= ord(c) <= 0x28FF)
+
+
+def nach_laenge(texte_a, texte_b, baender=((0, 20), (20, 60), (60, 10 ** 9))):
+    """Der Einwand, der den Guetebefund kippen wuerde: sind die maskierten
+       Antworten einfach KUERZER, sodass weniger Braille dasteht und ein Name
+       mechanisch seltener hineinpasst? Dann waere der Gueteverlust ein
+       Laengenartefakt und keine Aussage ueber die Konstruktion.
+
+       Geprueft in zwei Schritten: erst, ob die Braillemenge ueberhaupt
+       verschieden ist, dann die Guete innerhalb gleicher Zeichenbaender.
+       An den Pilotdaten (BR1 und BR2 zusammen) blieb der Abstand in beiden
+       besetzten Baendern bestehen - 79 % gegen 38 % und 71 % gegen 26 % -
+       bei praktisch gleicher Braillemenge (Median 29 gegen 28).
+
+       Liefert (U, [(band, a_richtig, a_n, b_richtig, b_n), ...]). U ist die
+       Wahrscheinlichkeit, dass eine Antwort aus A mehr Braille traegt als
+       eine aus B; 0.5 heisst kein Unterschied."""
+    A = [(braillemenge(t), bool(treffer(braille_entziffern(t))))
+         for t in texte_a if hat_braille(t)]
+    B = [(braillemenge(t), bool(treffer(braille_entziffern(t))))
+         for t in texte_b if hat_braille(t)]
+    if not A or not B:
+        return 0.5, []
+    la = [n for n, _ in A]
+    lb = [n for n, _ in B]
+    gr = (sum(1 for x in la for y in lb if x > y)
+          + 0.5 * sum(1 for x in la for y in lb if x == y))
+    u = gr / float(len(la) * len(lb))
+    aus = []
+    for lo, hi in baender:
+        a = [r for n, r in A if lo <= n < hi]
+        b = [r for n, r in B if lo <= n < hi]
+        aus.append(((lo, hi), sum(a), len(a), sum(b), len(b)))
+    return u, aus
+
+
+def laengenbericht(texte_a, texte_b, drucke=print):
+    u, baender = nach_laenge(texte_a, texte_b)
+    drucke("  P(A traegt mehr Braille als B) = %.2f   (0.50 = kein Unterschied)" % u)
+    for (lo, hi), ra, na, rb, nb in baender:
+        if not na or not nb:
+            drucke("    %3d bis %-4s  zu wenige Antworten (%d gegen %d)"
+                   % (lo, ("%d" % hi) if hi < 10 ** 9 else "oo", na, nb))
+            continue
+        drucke("    %3d bis %-4s  %2d/%-3d = %3.0f%%  gegen  %2d/%-3d = %3.0f%%   p=%.4f"
+               % (lo, ("%d" % hi) if hi < 10 ** 9 else "oo",
+                  ra, na, 100.0 * ra / na, rb, nb, 100.0 * rb / nb,
+                  fisher2x2(rb, nb - rb, ra, na - ra)))
+    return u, baender
+
+
 def main(pfad):
     with open(pfad, encoding="utf-8") as f:
         bericht(json.load(f))
