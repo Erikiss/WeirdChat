@@ -344,6 +344,79 @@ control in the same run rather than by assertion. The obvious follow-up is a
 dose–response curve inside the 42: block 8, 16, 24, 32, 42 and see whether the
 effect appears gradually or at a cliff.
 
+### Phase 19: what the clock can see — and a caveat for phases 14 and 17 (2026-08-07)
+
+The proposal was a phase coordinate φ(t) ∈ [0,2π) inside the model's rhythm, then P(φ | e) per
+expert, layer-conditioned as Δ_e(φ) = P(φ|e,L) − P(φ|L). Five independent reviews plus an
+adversarial refutation pass concluded that this coordinate does not exist in this
+architecture, for three independent reasons — and the run then measured all three rather than
+asserting them.
+
+**No carrier.** A phase needs something periodic. In autoregressive decoding exactly one event
+repeats — the token — so the only carrier the mechanism admits has period 1, and at period 1
+"phase within the period" *is* the position in the forward pass. Measured: 3 of 10 runs show
+an autocorrelation peak above the within-run permutation null, all at lag 2 — the signature of
+neighbour correlation, not a carrier. Verdict `KEIN-TRAEGER`.
+
+**The finest separable time coordinate is the layer.** All eight experts of a layer are
+processed at the same point of the pass. Δ_e(φ|L) has no residual variance that could belong
+to *e*; what it would return is token selection — conditioning on "e was routed" selects
+tokens with different content and KV length, i.e. exactly the confound the conditioning was
+meant to remove.
+
+**The arrow points the other way.** "Expert e prefers the high-load phase" needs load →
+routing. Measured: **0 flipped slots out of 10 240, in 4 rounds under forced GEMM contention.**
+Routing is a function of input and weights; clock and temperature do not enter the top-k. This
+is a bound of 2.4 × 10⁻⁵, not a proof.
+
+**What was measurable instead.** The MoE forward in transformers 5.x is a Python loop over the
+hit experts (`for expert_idx in expert_hit:`), not a fused grouped GEMM. At B = 1 that is
+exactly 8 iterations per layer, 320 per token. One expert is **6.00 MiB** (gate_up 4.00 + down
+2.00), so a decode step addresses **2.01 GB** of expert weight — *independently of which eight*.
+Between two touches of the same pair more than 3.5 GB streams through a 40 MB L2, so
+cross-token cache reuse is arithmetically dead; that was the obvious rescue of the idea and it
+falls. What survives is **diversity within a step**, which is causally forcible via the same
+hook mechanism used for masking since Phase 12.
+
+| forced diversity S | 320 | 640 | 1270 | 2245 | 3300 |
+|---|---|---|---|---|---|
+| median step time | 204.8 ms | 214.3 ms | 230.8 ms | 254.2 ms | 276.6 ms |
+
+**κ = 0.0239 ms per additional distinct expert** (bootstrap CI [0.0232, 0.0253], block-label
+permutation p = 0.0005). Pure bandwidth would predict 6 MiB / 1.55 TB/s ≈ 4.1 µs; the measured
+24 µs is **6× that**, so the runtime pays for the *loop iteration* — kernel launches and syncs
+— not for memory traffic. That also explains the 195 ms per token.
+
+**Identity, at fixed diversity, is invisible.** Forcing the 42 versus a *freshly drawn*
+rate-matched partner set each repeat (which also answers the Phase-15 caveat that only one
+random eighth was ever drawn): paired median over 12 run pairs = **77.8 µs = 0.04 % of step
+time = 3.3 experts' worth** of the diversity channel measured in the same run. The A/A pairs
+calibrate the null inside the run and do not reject (p = 0.81).
+
+**A correction to the run's own verdict logic.** The first run printed `UHR-BLIND` while the
+dose curve above sat in the same protocol. The injection ladder feeds a delay into *individual
+steps*, and at 195 ms per step with millisecond noise, 0.8 ms is not recoverable there — but
+H1/H2 compare *run medians* over 90 steps, whose noise is smaller by √n. One number was being
+used for two channels. The gate now carries both resolutions and declares blindness only if
+both fail; the run-level resolution is measured from the A/A pairs rather than injected.
+
+**The caveat for earlier phases.** Prefill and decode do not route identically: exact top-8
+agreement is **80.6–82.2 %** across arms, mean overlap **7.80 of 8**. Roughly one in five
+(layer, position) pairs flips a single expert — the signature of a near-tie in the eighth rank
+under a different reduction order. Phases 12, 15, 16 and 18 are unaffected (`hole_routing`
+reads through the cache path, i.e. as generation actually runs). **Phases 14 and 17 are
+affected**: both derive routing from a single teacher-forced pass over prompt and answer. The
+mean overlap is high, so this is a caveat and not a retraction — but the Phase-14 screen sets
+in particular were already unstable, and this is one contributing cause.
+
+**What this cannot say.** Nothing about Qwen3.6 — step time is a property of the *runtime*.
+The same routing under a fused kernel, CUDA graphs, or vLLM would produce a different rhythm
+entirely; every timing result here belongs in a section about transformers 5.x on sm80.
+Nothing below the resolution. Nothing about a phase below the layer — there is none. And H1/H2
+say nothing about behaviour: forced routing destroys the output, that is its purpose. H3 (load
+counter by arm) is uninformative as run: at B = 1, S is exactly 320 for every arm by
+construction, so the arm question needs a batch.
+
 ### Notebooks
 
 `phase12_experten_maske` (router masking), `phase12_sprachkarte` (four arms,
@@ -356,4 +429,9 @@ and Morse, with a decoder positive control that halts the run if it fails),
 `phase13_rechnen` (the same set on multiplication; `WIEDERHOLUNG` for an
 independent repeat), `phase14_screen` (routing-selectivity screen with two
 independently calibrated floors), `phase15_ablation` (four conditions matched on
-expert count, with the full 42 as a positive control that gates the verdict).
+expert count, with the full 42 as a positive control that gates the verdict),
+`phase16_kurve` (dose-response curve inside the 42, three nested chains),
+`phase17_impuls` (when the experts fire: burstiness, character binding, co-firing,
+depth vs time), `phase18_kern` (single-expert scan against a rate-matched empirical null),
+`phase19_taktgeber` (what the clock can see: forced routing diversity, identity bound,
+prefill-vs-decode audit).
