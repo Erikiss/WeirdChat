@@ -352,6 +352,45 @@ def test_verdikt_ist_erreichbar(vielfalt, blind):
         blind[1]["TAKT_RESULTS"]["verdict"]
 
 
+def test_messkette_direkt(vielfalt):
+    """schritt_zeiten wird hier UNMITTELBAR aufgerufen, nicht ueber ein
+       Ergebnis der Welt.
+
+       Der Mutationstest hat gezeigt, warum das noetig ist: drei Eingriffe in
+       die Messkette blieben unbemerkt, weil die Miniaturwelt sie nicht
+       unterscheiden kann. Aufgegebene Lehrerfuehrung faellt nicht auf, wenn
+       ohnehin erzwungen geroutet wird; mitlaufende Aufwaermschritte aendern
+       kein Verdikt; und vertauschte Ereigniszeiten sind an einem Median nicht
+       zu sehen. An der Kette selbst sind sie es."""
+    _, ns = vielfalt
+    sz = ns["schritt_zeiten"]
+    ids = ns["FESTE_IDS"]
+    n_soll = ns["N_SCHRITT"] - ns["VERWERFEN"]
+
+    # 1. Die Aufwaermschritte werden wirklich verworfen.
+    d = sz(ids, mit_haken=True, fangen=True)
+    assert len(d["dev"]) == n_soll, (len(d["dev"]), n_soll)
+    assert len(d["host"]) == n_soll
+    assert d["verworfen"] == ns["VERWERFEN"], d["verworfen"]
+    assert len(d["warm_host"]) == ns["VERWERFEN"]
+
+    # 2. Lehrergefuehrt heisst: an jeder Stelle ein ANDERES Token, also auch
+    #    anderes Routing. Wird stattdessen immer dieselbe Stelle gefuettert,
+    #    steht die Routingfolge still.
+    verschieden = len({tuple(x) for x in d["slots"] if x})
+    assert verschieden > 5,         (verschieden, "das Routing steht still - wird fortgeschritten?")
+
+    # 3. Die Ereigniszeiten muessen zu IHREM Schritt gehoeren. Eine
+    #    eingespeiste Verzoegerung an bekannten Stellen muss genau dort
+    #    auftauchen und nirgends sonst.
+    muster = [800 if i % 2 == 0 else 0 for i in range(ns["N_SCHRITT"])]
+    e = sz(ids, mit_haken=False, schlaf=muster, fangen=False)
+    mit = [t for t, m in zip(e["dev"], muster[ns["VERWERFEN"]:]) if m > 0]
+    ohne = [t for t, m in zip(e["dev"], muster[ns["VERWERFEN"]:]) if m == 0]
+    assert mit and ohne
+    assert np.median(mit) - np.median(ohne) > 0.5,         (np.median(mit), np.median(ohne), "Zeit und Schritt gehoeren nicht zusammen")
+
+
 def test_keine_haken_haengen(vielfalt):
     w, _ = vielfalt
     offen = sum(len(w.schichten[l]._haken) for l in range(NLAY))
