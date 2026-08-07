@@ -344,6 +344,64 @@ control in the same run rather than by assertion. The obvious follow-up is a
 dose–response curve inside the 42: block 8, 16, 24, 32, 42 and see whether the
 effect appears gradually or at a cliff.
 
+### Phases 16 and 18: the dose–response curve, and the single carrier L33/E228 (2026-08-07)
+
+Phase 15 left the shape between "an eighth does nothing" and "the 42 collapse everything"
+open. Phase 16 measured it with **three nested chains**: per chain one permutation of the 42,
+stages at 20/40/60/80 % contained in one another — so within a chain the effect can only grow
+as experts are added, and an unlucky small draw cannot masquerade as a threshold. Full set and
+a count-matched random 42 ran alongside as positive control and licence.
+
+**The curve split the arms.** Braille and Morse reach half the full effect at **20 %** of the
+set (`WENIGE-TRAGEN`); Japanese needs **80 %** (`SCHWELLE`). Median effect as fraction of the
+full set's effect:
+
+| arm | 20 % | 40 % | 60 % | 80 % | half-effect at |
+|---|---|---|---|---|---|
+| JA | 0.05 | 0.16 | 0.18 | 0.76 | 80 % |
+| BR1 | 0.89 | 0.93 | 0.93 | 0.82 | 20 % |
+| MORSE | 0.71 | 0.89 | 0.83 | 0.83 | 20 % |
+
+**The chains pointed at one expert.** Chain 3 blocked 34 of the 42 and did nothing on
+Braille/Morse, while both effective 20 %-stages of chains 1 and 2 contained exactly one pair
+from the eight that chain 3 left out: **L33/E228**. Post-hoc concordance across all 13
+conditions of the Phase-16 run: membership of L33/E228 predicts effect on BR1 and MORSE in
+**13 of 13** cases. That was arithmetic found by staring at a table — so it was written down
+as a prediction and *not* into the next notebook.
+
+**Phase 18 tested it blind.** Every one of the 42 ablated singly on the Braille arm, plus 42
+rate-matched foreign experts as an empirical null (median rate deviation 0.0 %). Result: exactly
+**one** inner pair clears the null — L33/E228 (effect 1.43× the full set's, p = 0.0018) — and
+**zero** of the 42 foreign pairs do. The confirmation stage, fresh draws on all arms:
+
+| arm | baseline | KERN = L33/E228 alone | REST = the other 41 | all 42 |
+|---|---|---|---|---|
+| BR1 | 69 % | **23 %** (p < 10⁻⁴, effect 0.79) | 58 % (p = 0.40, still) | 10 % |
+| MORSE | 85 % | **27 %** (p < 10⁻⁴, effect 0.80) | 96 % (p = 0.16, still) | 12 % |
+| JA | 100 % | 100 % (14 router slots — it barely fires there) | **10 %** (effect 1.13) | 21 % |
+| SR / RU | 88 / 98 % | untouched | untouched | untouched |
+
+One expert occupying 657 router slots on the Braille arm does what the other 41 with 4177
+slots cannot. Verdict: `EINZELNER-TRAEGT`.
+
+**What this decomposes.** The Phase-12 grouping "JA + BR1 + MORSE fall together under the 42"
+was two mechanisms wearing one set: kana switching is **distributed** over the other 41
+(consistent with the 80 % threshold), while character-wise transcoding into constructed symbol
+systems runs substantially through **one expert** — recruited ~50× more on Braille/Morse
+answers (657/480 slots) than on JA/SR/RU (7–18). It also resolves why the Phase-14 screen
+could never have found it: the screen demanded selectivity in the JA ∩ BR1 ∩ MORSE
+intersection, and the true carrier fails the JA leg by construction. And it explains Phase 15's
+`WIRKUNG-IST-VERTEILT`: a single random eighth of the 42 misses L33/E228 with probability
+~0.8, and did.
+
+**Caveats.** One run, one scan arm (BR1, the largest drop), n = 24 per single ablation; the
+notebook's own verdict text demands a `WIEDERHOLUNG=1` repeat before this is worth anything.
+The carrier's effect is 0.79–0.80 of the full set's, not 1.0 — the remainder is not
+attributable at this dose. A null on a single expert means "too small to measure" rather than
+"inert": one expert blocks few slots. And L33/E228 entered the 42 via the routing difference
+at the JA decision point yet barely fires during kana production — recruited at the decision,
+working elsewhere; that dissociation is measured, not explained.
+
 ### Phase 19: what the clock can see — and a caveat for phases 14 and 17 (2026-08-07)
 
 The proposal was a phase coordinate φ(t) ∈ [0,2π) inside the model's rhythm, then P(φ | e) per
