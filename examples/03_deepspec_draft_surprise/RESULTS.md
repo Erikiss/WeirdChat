@@ -344,6 +344,148 @@ control in the same run rather than by assertion. The obvious follow-up is a
 dose–response curve inside the 42: block 8, 16, 24, 32, 42 and see whether the
 effect appears gradually or at a cliff.
 
+### Phases 16 and 18: the dose–response curve, and the single carrier L33/E228 (2026-08-07)
+
+Phase 15 left the shape between "an eighth does nothing" and "the 42 collapse everything"
+open. Phase 16 measured it with **three nested chains**: per chain one permutation of the 42,
+stages at 20/40/60/80 % contained in one another — so within a chain the effect can only grow
+as experts are added, and an unlucky small draw cannot masquerade as a threshold. Full set and
+a count-matched random 42 ran alongside as positive control and licence.
+
+**The curve split the arms.** Braille and Morse reach half the full effect at **20 %** of the
+set (`WENIGE-TRAGEN`); Japanese needs **80 %** (`SCHWELLE`). Median effect as fraction of the
+full set's effect:
+
+| arm | 20 % | 40 % | 60 % | 80 % | half-effect at |
+|---|---|---|---|---|---|
+| JA | 0.05 | 0.16 | 0.18 | 0.76 | 80 % |
+| BR1 | 0.89 | 0.93 | 0.93 | 0.82 | 20 % |
+| MORSE | 0.71 | 0.89 | 0.83 | 0.83 | 20 % |
+
+**The chains pointed at one expert.** Chain 3 blocked 34 of the 42 and did nothing on
+Braille/Morse, while both effective 20 %-stages of chains 1 and 2 contained exactly one pair
+from the eight that chain 3 left out: **L33/E228**. Post-hoc concordance across all 13
+conditions of the Phase-16 run: membership of L33/E228 predicts effect on BR1 and MORSE in
+**13 of 13** cases. That was arithmetic found by staring at a table — so it was written down
+as a prediction and *not* into the next notebook.
+
+**Phase 18 tested it blind.** Every one of the 42 ablated singly on the Braille arm, plus 42
+rate-matched foreign experts as an empirical null (median rate deviation 0.0 %). Result: exactly
+**one** inner pair clears the null — L33/E228 (effect 1.43× the full set's, p = 0.0018) — and
+**zero** of the 42 foreign pairs do. The confirmation stage, fresh draws on all arms:
+
+| arm | baseline | KERN = L33/E228 alone | REST = the other 41 | all 42 |
+|---|---|---|---|---|
+| BR1 | 69 % | **23 %** (p < 10⁻⁴, effect 0.79) | 58 % (p = 0.40, still) | 10 % |
+| MORSE | 85 % | **27 %** (p < 10⁻⁴, effect 0.80) | 96 % (p = 0.16, still) | 12 % |
+| JA | 100 % | 100 % (14 router slots — it barely fires there) | **10 %** (effect 1.13) | 21 % |
+| SR / RU | 88 / 98 % | untouched | untouched | untouched |
+
+One expert occupying 657 router slots on the Braille arm does what the other 41 with 4177
+slots cannot. Verdict: `EINZELNER-TRAEGT`.
+
+**Replicated (2026-08-08).** An independent repeat (`WIEDERHOLUNG=1`: fresh draws, a freshly
+drawn rate-matched comparison set, fresh empirical null) returned the same verdict and the
+same core. L33/E228 is again the **only** inner pair over the null (effect 1.50, p = 0.0044);
+again **zero** of the 42 foreign pairs clear it. In the repeat the single expert's effect
+equals the full set's exactly: BR1 65 → 10 % under KERN and under all 42 alike (5/48 both),
+Morse 90 → 19 % (9/48 both), REST still on both arms; Japanese is again carried by the other
+41 (KERN occupies 20 slots there and does nothing). Across the two runs: two hits in 84 inner
+single-ablations — the same pair twice — and zero in 84 foreign ones. Between the two, an
+accidental control: a rerun that still had `WIEDERHOLUNG=0` reproduced run 0 **bit for bit**
+across a fresh Colab container — the whole chain is deterministic, so machine noise is not a
+candidate explanation for either result.
+
+**What this decomposes.** The Phase-12 grouping "JA + BR1 + MORSE fall together under the 42"
+was two mechanisms wearing one set: kana switching is **distributed** over the other 41
+(consistent with the 80 % threshold), while character-wise transcoding into constructed symbol
+systems runs substantially through **one expert** — recruited ~50× more on Braille/Morse
+answers (657/480 slots) than on JA/SR/RU (7–18). It also resolves why the Phase-14 screen
+could never have found it: the screen demanded selectivity in the JA ∩ BR1 ∩ MORSE
+intersection, and the true carrier fails the JA leg by construction. And it explains Phase 15's
+`WIRKUNG-IST-VERTEILT`: a single random eighth of the 42 misses L33/E228 with probability
+~0.8, and did.
+
+**Caveats.** One scan arm (BR1, the largest drop), n = 24 per single ablation. The carrier's
+effect is 0.79–0.80 of the full set's in run 0 and 1.00 in run 1 — how much the remainder
+contributes is not settled at this dose. A null on a single expert means "too small to measure" rather than
+"inert": one expert blocks few slots. And L33/E228 entered the 42 via the routing difference
+at the JA decision point yet barely fires during kana production — recruited at the decision,
+working elsewhere; that dissociation is measured, not explained.
+
+### Phase 19: what the clock can see — and a caveat for phases 14 and 17 (2026-08-07)
+
+The proposal was a phase coordinate φ(t) ∈ [0,2π) inside the model's rhythm, then P(φ | e) per
+expert, layer-conditioned as Δ_e(φ) = P(φ|e,L) − P(φ|L). Five independent reviews plus an
+adversarial refutation pass concluded that this coordinate does not exist in this
+architecture, for three independent reasons — and the run then measured all three rather than
+asserting them.
+
+**No carrier.** A phase needs something periodic. In autoregressive decoding exactly one event
+repeats — the token — so the only carrier the mechanism admits has period 1, and at period 1
+"phase within the period" *is* the position in the forward pass. Measured: 3 of 10 runs show
+an autocorrelation peak above the within-run permutation null, all at lag 2 — the signature of
+neighbour correlation, not a carrier. Verdict `KEIN-TRAEGER`.
+
+**The finest separable time coordinate is the layer.** All eight experts of a layer are
+processed at the same point of the pass. Δ_e(φ|L) has no residual variance that could belong
+to *e*; what it would return is token selection — conditioning on "e was routed" selects
+tokens with different content and KV length, i.e. exactly the confound the conditioning was
+meant to remove.
+
+**The arrow points the other way.** "Expert e prefers the high-load phase" needs load →
+routing. Measured: **0 flipped slots out of 10 240, in 4 rounds under forced GEMM contention.**
+Routing is a function of input and weights; clock and temperature do not enter the top-k. This
+is a bound of 2.4 × 10⁻⁵, not a proof.
+
+**What was measurable instead.** The MoE forward in transformers 5.x is a Python loop over the
+hit experts (`for expert_idx in expert_hit:`), not a fused grouped GEMM. At B = 1 that is
+exactly 8 iterations per layer, 320 per token. One expert is **6.00 MiB** (gate_up 4.00 + down
+2.00), so a decode step addresses **2.01 GB** of expert weight — *independently of which eight*.
+Between two touches of the same pair more than 3.5 GB streams through a 40 MB L2, so
+cross-token cache reuse is arithmetically dead; that was the obvious rescue of the idea and it
+falls. What survives is **diversity within a step**, which is causally forcible via the same
+hook mechanism used for masking since Phase 12.
+
+| forced diversity S | 320 | 640 | 1270 | 2245 | 3300 |
+|---|---|---|---|---|---|
+| median step time | 204.8 ms | 214.3 ms | 230.8 ms | 254.2 ms | 276.6 ms |
+
+**κ = 0.0239 ms per additional distinct expert** (bootstrap CI [0.0232, 0.0253], block-label
+permutation p = 0.0005). Pure bandwidth would predict 6 MiB / 1.55 TB/s ≈ 4.1 µs; the measured
+24 µs is **6× that**, so the runtime pays for the *loop iteration* — kernel launches and syncs
+— not for memory traffic. That also explains the 195 ms per token.
+
+**Identity, at fixed diversity, is invisible.** Forcing the 42 versus a *freshly drawn*
+rate-matched partner set each repeat (which also answers the Phase-15 caveat that only one
+random eighth was ever drawn): paired median over 12 run pairs = **77.8 µs = 0.04 % of step
+time = 3.3 experts' worth** of the diversity channel measured in the same run. The A/A pairs
+calibrate the null inside the run and do not reject (p = 0.81).
+
+**A correction to the run's own verdict logic.** The first run printed `UHR-BLIND` while the
+dose curve above sat in the same protocol. The injection ladder feeds a delay into *individual
+steps*, and at 195 ms per step with millisecond noise, 0.8 ms is not recoverable there — but
+H1/H2 compare *run medians* over 90 steps, whose noise is smaller by √n. One number was being
+used for two channels. The gate now carries both resolutions and declares blindness only if
+both fail; the run-level resolution is measured from the A/A pairs rather than injected.
+
+**The caveat for earlier phases.** Prefill and decode do not route identically: exact top-8
+agreement is **80.6–82.2 %** across arms, mean overlap **7.80 of 8**. Roughly one in five
+(layer, position) pairs flips a single expert — the signature of a near-tie in the eighth rank
+under a different reduction order. Phases 12, 15, 16 and 18 are unaffected (`hole_routing`
+reads through the cache path, i.e. as generation actually runs). **Phases 14 and 17 are
+affected**: both derive routing from a single teacher-forced pass over prompt and answer. The
+mean overlap is high, so this is a caveat and not a retraction — but the Phase-14 screen sets
+in particular were already unstable, and this is one contributing cause.
+
+**What this cannot say.** Nothing about Qwen3.6 — step time is a property of the *runtime*.
+The same routing under a fused kernel, CUDA graphs, or vLLM would produce a different rhythm
+entirely; every timing result here belongs in a section about transformers 5.x on sm80.
+Nothing below the resolution. Nothing about a phase below the layer — there is none. And H1/H2
+say nothing about behaviour: forced routing destroys the output, that is its purpose. H3 (load
+counter by arm) is uninformative as run: at B = 1, S is exactly 320 for every arm by
+construction, so the arm question needs a batch.
+
 ### Notebooks
 
 `phase12_experten_maske` (router masking), `phase12_sprachkarte` (four arms,
@@ -356,4 +498,9 @@ and Morse, with a decoder positive control that halts the run if it fails),
 `phase13_rechnen` (the same set on multiplication; `WIEDERHOLUNG` for an
 independent repeat), `phase14_screen` (routing-selectivity screen with two
 independently calibrated floors), `phase15_ablation` (four conditions matched on
-expert count, with the full 42 as a positive control that gates the verdict).
+expert count, with the full 42 as a positive control that gates the verdict),
+`phase16_kurve` (dose-response curve inside the 42, three nested chains),
+`phase17_impuls` (when the experts fire: burstiness, character binding, co-firing,
+depth vs time), `phase18_kern` (single-expert scan against a rate-matched empirical null),
+`phase19_taktgeber` (what the clock can see: forced routing diversity, identity bound,
+prefill-vs-decode audit).
