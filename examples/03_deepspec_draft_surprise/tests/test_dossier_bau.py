@@ -68,12 +68,41 @@ def test_sprechnamen(L):
 def test_ausschluss_hat_immer_einen_grund(L):
     assert L["ist_ausgeschlossen"]("phase18_kern_20260807-152535")
     assert L["ist_ausgeschlossen"]("phase16_kurve_20260806-215752") is None
+    # Praefix-Ausschluss: fremde Untersuchungen und der Bau-Lauf selbst -
+    # deren Zeitstempel sind nicht vorab bekannt
+    assert L["ist_ausgeschlossen"]("sudoku_sprache_pilot_20260807-033337")
+    assert L["ist_ausgeschlossen"]("phase20_dossier_20260808-070430")
+    assert L["ist_ausgeschlossen"]("phase18_kern_20260806-233216")
+    assert L["ist_ausgeschlossen"]("phase18_kern_20260808-015507")
     for name, grund in L["AUSSCHLUSS"].items():
         assert len(grund) > 40, (name, "Ausschluss ohne echte Begruendung")
     # Kein ausgeschlossener Lauf darf zugleich einen Sprechnamen haben -
     # das hiesse, er wuerde doch kopiert
     for name in L["AUSSCHLUSS"]:
         assert name not in L["SPRECH_EXAKT"], name
+
+
+def test_zu_entfernen_raeumt_altkopien(L):
+    """Der erste Bau hat mitgenommen, was damals nicht auf der Tafel stand.
+       Ein Neuaufbau muss diese Kopien entfernen - sonst wird das Dossier nie
+       wieder konsistent, egal wie oft man die Zelle laufen laesst."""
+    ze = L["zu_entfernen"]
+    da = ["phase16_dosis_wirkungs_kurve__20260806-215752",
+          "sudoku_sprache_pilot_20260807-033337",
+          "phase20_dossier_20260808-070430",
+          "phase18_kern_20260806-233216",
+          "phase18_kern_20260808-015907",
+          "AUSGESCHLOSSEN.md",
+          "phase12_fruehe_maskenlaeufe_rohdaten"]
+    weg = ze(da)
+    assert "sudoku_sprache_pilot_20260807-033337" in weg
+    assert "phase20_dossier_20260808-070430" in weg
+    assert "phase18_kern_20260806-233216" in weg
+    assert "phase18_kern_20260808-015907" in weg
+    # aber niemals die gueltigen Kopien oder die Doku selbst
+    assert "phase16_dosis_wirkungs_kurve__20260806-215752" not in weg
+    assert "AUSGESCHLOSSEN.md" not in weg
+    assert "phase12_fruehe_maskenlaeufe_rohdaten" not in weg
 
 
 def test_manifest_und_groessen(L):
@@ -121,6 +150,22 @@ def gebaut(tmp_path_factory):
             dict(verdict="EINZELNER-TRAEGT", kern=[[33, 228]], wiederholung=wdh,
                  scan_basis=11, scan_voll=4, aussen_treffer=[])))
     (wurzel / "weird_transcripts.jsonl").write_text('{"id":"p1"}\n')
+    # Ordner, die der Bau ausschliessen bzw. beim Neuaufbau ENTFERNEN muss:
+    # fremder Pilot, der Bau-Lauf selbst, der bitidentische phase18-Zwilling,
+    # ein abgebrochener Start
+    for extra in ("sudoku_sprache_pilot_20260807-033337",
+                  "phase20_dossier_20260808-070430",
+                  "phase18_kern_20260806-233216",
+                  "phase18_kern_20260808-015507"):
+        (runs / extra).mkdir()
+        (runs / extra / "protokoll.txt").write_text("x")
+    # Altkopien aus einem frueheren Bau, die jetzt verschwinden muessen
+    alt = wurzel / "WeirdChat_Dossier_L33_E228" / "03_laeufe"
+    alt.mkdir(parents=True)
+    for stale in ("sudoku_sprache_pilot_20260807-033337",
+                  "phase18_kern_20260806-233216"):
+        (alt / stale).mkdir()
+        (alt / stale / "protokoll.txt").write_text("alt")
     ausgabe = tmp_path_factory.mktemp("run_out")
 
     w = KERNWELT.Welt()
@@ -178,7 +223,14 @@ def test_laeufe_kopiert_und_ausgeschlossen(gebaut):
     L = os.path.join(wurzel, "WeirdChat_Dossier_L33_E228", "03_laeufe")
     assert os.path.isdir(os.path.join(
         L, "phase16_dosis_wirkungs_kurve__20260806-215752"))
-    assert not any("152535" in d for d in os.listdir(L)), os.listdir(L)
+    da = os.listdir(L)
+    assert not any("152535" in d for d in da), da
+    # Praefix-Ausschluesse: nichts Fremdes, nicht der Bau-Lauf selbst
+    assert not any(d.startswith("sudoku_") for d in da), da
+    assert not any(d.startswith("phase20_dossier") for d in da), da
+    # und die Altkopien aus dem ersten Bau sind ENTFERNT, nicht nur nicht
+    # neu kopiert
+    assert "phase18_kern_20260806-233216" not in da, da
     doku = open(os.path.join(L, "AUSGESCHLOSSEN.md"), encoding="utf-8").read()
     assert "phase18_kern_20260807-152535" in doku
     assert "Determinismusnachweis" in doku
