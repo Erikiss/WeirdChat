@@ -118,6 +118,18 @@ def test_feuer_je_klasse_pad_reihen_uebersprungen():
     je=L["feuer_je_klasse"](top8,tokens,[[0,0]],eos_id=99,ziel_e=5)
     assert je==[[[1,1],[0,0],[0,0]]]
 
+def test_feuer_je_klasse_stoppmenge():
+    """Qwen stoppt auch auf endoftext: nach dem ersten Stopp-Token aus der
+       MENGE zaehlt nichts mehr - sonst laufen Fuelltoken-Schritte in die
+       Rate (Review-Befund)."""
+    top8=np.array([[[5,1,2,3,4,6,7,8]]*4]*2,dtype=np.int16)
+    tokens=np.array([[11,151643,12,13],     # endoftext an Pos 1
+                     [11,151645,12,13]],    # im_end an Pos 1
+                    dtype=np.int32)
+    je=L["feuer_je_klasse"](top8,tokens,[[0,0,0,0]]*2,
+                            eos_id={151645,151643},ziel_e=5)
+    assert je==[[[1,1],[0,0],[0,0]]]*2   # BEIDE stoppen nach Position 0
+
 # ------------------------------------------------------------- Statistik ---
 def _welt(A,B,n_je,rnd,alpha=None,beta=None,gamma=None,rauschen=0.05,mu=0.3):
     R=np.zeros((A,B,n_je))
@@ -213,16 +225,66 @@ def test_spitzen_zellen_finden_die_gepflanzten():
     rnd=random.Random(8)
     gamma={(2,7):0.4,(5,1):0.35}
     R=_welt(26,26,6,rnd,gamma=gamma,rauschen=0.02)
-    g=L["paar_reste"](R)
     bs=L["ALPHABETE"]["lat26"]
-    oben=L["spitzen_zellen"](g,bs,hoechstens=2)
+    oben=L["spitzen_zellen"](R,bs,hoechstens=2)
     assert {z["paar"] for z in oben}=={bs[2]+bs[7],bs[5]+bs[1]}
 
 def test_spitzen_zellen_markieren_kandidaten():
     bs=L["ALPHABETE"]["lat26"]
-    g=np.zeros((26,26)); g[bs.index("c"),bs.index("h")]=0.5
-    oben=L["spitzen_zellen"](g,bs,hoechstens=1)
+    rnd=random.Random(81)
+    R=_welt(26,26,6,rnd,gamma={(bs.index("c"),bs.index("h")):0.5},rauschen=0.02)
+    oben=L["spitzen_zellen"](R,bs,hoechstens=1)
     assert oben[0]["paar"]=="ch" and oben[0]["kandidat"]
+
+def test_spitzen_zellen_duenne_zellen_fliegen_raus():
+    """Eine Zelle mit riesigem gamma aber nur 2 Ziehungen darf die Liste
+       nicht anfuehren - sie faellt unter die Mindestbelegung
+       (Review-Befund: sonst lenkt Rauschen Stufe-C-GPU-Zeit auf
+       Artefakte)."""
+    bs=L["ALPHABETE"]["lat26"]
+    rnd=random.Random(82)
+    R=_welt(26,26,6,rnd,gamma={(5,1):0.3},rauschen=0.02)
+    R[2,7,2:]=np.nan            # Zelle (2,7): nur noch 2 Ziehungen ...
+    R[2,7,0]=0.90; R[2,7,1]=1.0 # ... aber extremes Mittel und kleines se
+    oben=L["spitzen_zellen"](R,bs,hoechstens=3,mindest_ziehungen=3)
+    assert bs[2]+bs[7] not in {z["paar"] for z in oben}
+    assert oben[0]["paar"]==bs[5]+bs[1]
+
+def test_kandidatentest_exakt_und_maechtig():
+    """p_kandidat: Rang des Zellrests unter allen Zellen. Kalibriert in der
+       Nullwelt, maechtig fuer die gepflanzte Einzelzelle - auch mit
+       BINOMIALRAUSCHEN in Zellgroesse der echten Messung (der globale
+       Spiegeltest hat dort keine Einzelzellen-Power, Review-Befund)."""
+    def binwelt(A,n_je,rnd,mu=0.5,gamma=None):
+        R=np.full((A,A,n_je),np.nan)
+        for i in range(A):
+            for j in range(A):
+                pz=min(max(mu+((gamma or {}).get((i,j),0.0)),0.01),0.99)
+                for k in range(n_je):
+                    g=rnd.randint(4,8)
+                    R[i,j,k]=sum(1 for _ in range(g) if rnd.random()<pz)/g
+        return R
+    tr=0; fa=0; SIMS=15
+    for s in range(SIMS):
+        R=binwelt(26,6,random.Random(900+s),gamma={(2,7):0.3})
+        tr+=int(L["p_kandidat"](R,2,7)<0.05)
+        R0=binwelt(26,6,random.Random(950+s))
+        fa+=int(L["p_kandidat"](R0,2,7)<0.05)
+    assert tr>=12, "Power %d/%d"%(tr,SIMS)
+    assert fa<=3, "Fehlalarm %d/%d"%(fa,SIMS)
+
+def test_zaehlwerk_nur_gueltige():
+    """Ungueltige Antworten duerfen nicht in den Ratenwuerfel - ihr Feuern
+       ist vom Transkodier-Feuern nicht zu trennen (Review-Befund). Die
+       Rohsumme kommt trotzdem zurueck."""
+    z={}
+    je=[[2,4],[1,3],[0,2]]
+    tr,g=L["zaehlwerk_eintrag"](z,(0,0,0),je,True)
+    assert (tr,g)==(3,9) and z[(0,0,0)]==[3,9]
+    tr,g=L["zaehlwerk_eintrag"](z,(0,1,0),je,False)
+    assert (tr,g)==(3,9) and (0,1,0) not in z
+    tr,g=L["zaehlwerk_eintrag"](z,(0,2,0),[[0,0],[0,0],[0,0]],True)
+    assert (0,2,0) not in z   # keine gueltigen Positionen -> kein Eintrag
 
 def test_luecken_ueberleben_die_kette():
     rnd=random.Random(9)
@@ -245,22 +307,31 @@ def _positionswelt(n,r0,r1,g=20,rnd=None):
 def test_position_erstlastig_und_gleich():
     rnd=random.Random(11)
     je=_positionswelt(40,0.7,0.2,rnd=rnd)
-    p,d,n=L["positions_vergleich"](je,400,random.Random(12))
-    assert L["urteil_position"](p,d,n)=="ERSTBUCHSTABE-LASTIG"
+    p,d,n,ki=L["positions_vergleich"](je,400,random.Random(12))
+    assert L["urteil_position"](p,d,n,ki)=="ERSTBUCHSTABE-LASTIG"
     je2=_positionswelt(40,0.45,0.45,rnd=rnd)
-    p2,d2,n2=L["positions_vergleich"](je2,400,random.Random(13))
-    assert L["urteil_position"](p2,d2,n2)=="GLEICHVERTEILT"
+    p2,d2,n2,ki2=L["positions_vergleich"](je2,400,random.Random(13))
+    assert L["urteil_position"](p2,d2,n2,ki2)=="GLEICHVERTEILT"
 
 def test_position_zweitlastig():
     rnd=random.Random(16)
     je=_positionswelt(40,0.2,0.7,rnd=rnd)
-    p,d,n=L["positions_vergleich"](je,400,random.Random(17))
-    assert L["urteil_position"](p,d,n)=="ZWEITBUCHSTABE-LASTIG"
+    p,d,n,ki=L["positions_vergleich"](je,400,random.Random(17))
+    assert L["urteil_position"](p,d,n,ki)=="ZWEITBUCHSTABE-LASTIG"
+
+def test_position_unentschieden_bei_breitem_ki():
+    """GLEICHVERTEILT ist eine positive Behauptung: ohne enges KI heisst
+       Nichtablehnung nur POSITION-UNENTSCHIEDEN (Review-Befund)."""
+    rnd=random.Random(18)
+    je=_positionswelt(10,0.5,0.5,g=4,rnd=rnd)
+    p,d,n,ki=L["positions_vergleich"](je,400,random.Random(19))
+    assert p>=0.05 and (ki[1]-ki[0])>0.2
+    assert L["urteil_position"](p,d,n,ki)=="POSITION-UNENTSCHIEDEN"
 
 def test_position_zu_wenig_daten():
     je=_positionswelt(5,0.8,0.1,rnd=random.Random(14))
-    p,d,n=L["positions_vergleich"](je,200,random.Random(15))
-    assert L["urteil_position"](p,d,n)=="POSITION-UNGEMESSEN"
+    p,d,n,ki=L["positions_vergleich"](je,200,random.Random(15))
+    assert L["urteil_position"](p,d,n,ki)=="POSITION-UNGEMESSEN"
 
 # ---------------------------------------------------------------- Urteil ----
 def test_urteil_tore_in_reihenfolge():
@@ -269,8 +340,12 @@ def test_urteil_tore_in_reihenfolge():
     assert u(0.9,0.5,0.5,0.001,0.001)=="MESSFELD-LUECKIG"
     assert u(0.9,0.9,0.01,0.001,0.001)=="RAHMEN-ZU-DUENN"
     assert u(0.9,0.9,None,0.001,0.001)=="RAHMEN-ZU-DUENN"
-    assert u(0.9,0.9,0.5,0.5,0.001)=="BUCHSTABEN-BLIND"
+    # Reine Paarwelt (Stufe 1 unauffaellig, Stufe 2 signifikant) ist
+    # PAARE-EIGEN - BUCHSTABEN-BLIND darf sie nicht verdecken
+    # (Review-Befund).
+    assert u(0.9,0.9,0.5,0.5,0.001)=="PAARE-EIGEN"
     assert u(0.9,0.9,0.5,0.001,0.001)=="PAARE-EIGEN"
+    assert u(0.9,0.9,0.5,0.5,0.5)=="BUCHSTABEN-BLIND"
     assert u(0.9,0.9,0.5,0.001,0.5)=="BUCHSTABEN-ADDITIV"
 
 def test_raten_wuerfel_baut_und_laesst_luecken():

@@ -97,17 +97,18 @@ Konfiguration. Bigrammzahlen der geplanten Schriften:
 | Schrift | Zeichen | Bigramme | Morse-Gegenstück |
 |---|---:|---:|---|
 | lateinisch (dt. Rahmen) | 26 | 676 | internationaler Morse |
-| kyrillisch | 32 | 1 024 | russischer Landescode |
+| kyrillisch | 32 | 1 024 | russischer Landescode (Е=Ё) |
 | griechisch | 24 | 576 | griechischer Landescode |
 | hebräisch | 22 | 484 | hebräischer Landescode |
 | arabisch | 28 | 784 | arabischer Landescode |
-| Kana | 46 | 2 116 | Wabun-Code (japanischer Morse) |
+| Kana | 48 | 2 304 | Wabun-Code (japanischer Morse) |
 | Hangul-Jamo | 24 | 576 | koreanischer Morse (SKATS-Familie) |
-| **Summe** | | **6 236** | |
+| **Summe** | | **6 424** | |
 
 Bei der im Pilot gemessenen Größenordnung (Ziehungen zu ~0,75 s bei
 96 neuen Token; hier 24) liegt die **gesamte Stufe B über alle sieben
-Schriften bei grob ein bis zwei GPU-Stunden**. Stufe A druckt die präzise
+Schriften bei grob ein bis zwei GPU-Stunden** (N_JE = 12 Runden,
+Stapel zu 48 Reihen). Stufe A druckt die präzise
 Hochrechnung aus dem eigenen Durchsatz (Abschnitt 3 des Protokolls).
 
 **Zweitens entscheidet Stufe A selbst, ob die Explosion überhaupt
@@ -125,11 +126,14 @@ wäre mit dem lateinischen Arm konfundiert, Bopomofo hat keinen
 etablierten Morse. Chinesisch ist dafür der geplante **Kontrastfall** in
 Stufe B: transkodiert das Netz auch dort, wo die Einheit kein Buchstabe
 ist — oder ist es an alphabetische Einheiten gebunden? **Hangul** ist aus
-dem umgekehrten Grund der interessanteste Prüfstein: die Jamo-Formen
-kodieren Artikulationsmerkmale (Mundstellung, Zungenlage) — wenn
-Buchstabeneffekte α dort nach Merkmalsklassen clustern, wäre das eine
-merkmalsbasierte, „semantik-artige" Organisation, die sich messen ließe,
-statt behauptet zu werden.
+dem umgekehrten Grund der interessanteste Prüfstein: die 14
+Konsonanten-Jamo kodieren Artikulationsorte (Zungenwurzel, Zungenspitze,
+Lippen, Zähne, Kehle — mit Strichzusatz für Aspiration), die 10 Vokale
+dagegen folgen der Himmel/Erde/Mensch-Symbolik, nicht der Mundstellung.
+Clustern die Konsonanten-Effekte α nach Artikulationsklassen — und die
+Vokale als eingebaute Negativkontrolle eben nicht —, wäre das eine
+merkmalsbasierte Organisation, die sich messen ließe, statt behauptet
+zu werden.
 
 Für jede Schrift gilt ein **Lebt-Tor** wie im Pilot: erst zeigen, dass
 das Modell den jeweiligen Landescode überhaupt hinreichend oft gültig
