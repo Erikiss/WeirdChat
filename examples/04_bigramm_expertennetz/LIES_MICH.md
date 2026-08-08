@@ -16,30 +16,48 @@ dem Einzelbefund ein **Expertennetz**, und diese Mappe misst dessen
 Binnenstruktur. Alles hier funktioniert aber schon mit E228 allein;
 `EXPERTEN` im Notebook ist eine Liste und wird bei Scan-Rückkehr erweitert.
 
-## 1. Einordnung ins Methodenpapier
+## 1. Einordnung: das Semantiknetz-Paper und das Methodenpapier
 
-Das Methodenpapier (`erikiss/spectral-probe-circuits`,
-`methodology_paper.md`) **behauptet nicht**, dass Expertennetze eine
-semantik-artige Binnenmechanik haben — diese Frage stellt es gar nicht.
-Was es liefert, ist das Prüfrezept dafür:
+**Das gemeinte Paper** ist Ha & Kim, *„Semantic Networks as Clues: A
+Theoretical Foundation and Process Optimization for Semantic Network
+Construction"* (Soongsil University). Es behandelt semantische Netzwerke
+aus **Text**: Schlüsselphrasen als Knoten, semantische Verwandtschaft als
+Kantengewichte, Communities als Themen — konstruiert in drei Stufen
+(AKE → Keyness, EW → Interpretierbarkeit, CD → Distinktheit) und als
+Gesamtprozess über eine Zielfunktion J optimiert (ClueNetwork).
+Epistemisch zentral: solche Netze sind **„clues, not surrogates"** — es
+gibt keinen Goldstandard, ihre Legitimität kommt aus der Peirce'schen
+**Abduktion** (überraschender Befund → erklärende Hypothese → später
+induktiv prüfbar).
 
-- **Kleine kausale Gruppen sind sein Kernbefund** (3–13 Köpfe je
-  Fähigkeit, über sechs Modelle, darunter ein MoE). Ein kleines
-  Morse-Expertennetz wäre eine weitere Instanz dieses Musters auf
-  Router-Kanälen statt Attention-Köpfen — eine **Bestätigung des Rezepts,
-  nicht einer Netzwerk-These**.
-- **§7 (zusammengesetzte Aufgaben)** ist die eigentliche Anleitung: eine
-  zusammengesetzte Fähigkeit in Kandidaten-Teilmuster zerlegen, jedes
-  screenen, jedes **einzeln kausal** gegen abgestimmte Zufallskontrollen
-  prüfen — und §7.6 warnt, dass dieselbe Zerlegung je Modell kausal,
-  wirkungslos oder sogar hinderlich sein kann. Genau so ist diese Mappe
-  gebaut: „Bigramm = Buchstabe + Buchstabe + evtl. Paar-Einheit" ist die
-  Kandidaten-Zerlegung, und ob sie trägt, entscheidet die Messung.
-- **§9.2** (Selektivität allein ist kein Schaltkreisfinder) ist in dieser
-  Untersuchung bereits einmal in einem MoE bestätigt worden (Phasen
-  14–15). Konsequenz hier: Stufe A ist **reine Beobachtung** und wird als
-  solche ausgewiesen; kausale Aussagen über Kandidatenzellen macht erst
-  Stufe C per Maskierung.
+**Bestätigen kann ein Morse-Expertennetz dieses Paper nicht** — es macht
+keinerlei Aussage über MoE-Experten oder neuronale Mechanik, und Begriffe
+wie „Kommunikation" oder „Aneignung" von Semantik kommen darin nicht vor.
+Was es liefert, ist etwas Nützlicheres: den **Bauplan und die Epistemik**
+für genau das, was diese Mappe und der Voll-Scan tun. Die Übersetzung,
+Stufe für Stufe:
+
+| SNC-Stufe (Paper) | Ziel (Paper) | Gegenstück hier |
+|---|---|---|
+| AKE — welche Einheiten werden Knoten | Keyness | Voll-Scan: welche Experten gehören ins Netz (Kriterium strenger: **kausal**, nicht häufigkeitsbasiert) |
+| EW — Kantengewichte aus Ko-Vorkommen (Distributionshypothese) | Interpretierbarkeit | Ko-Feuern der Experten über Decode-Positionen — die `feuerwuerfel_*.npz` dieser Mappe enthalten dafür alle 256 Experten je Zielschicht |
+| CD — Communities als Themen | Distinktheit | bildet {E228 + Partner} eine abgegrenzte Community im Ko-Feuer-Graphen? |
+| J / ClueNetwork — Kandidatennetze ranken | Wissensrepräsentation | konkurrierende Netz-Definitionen nach Scan-Rückkehr vergleichen |
+
+Auch die **Zweibuchstaben-Frage** hat im Paper-Vokabular eine präzise
+Form: ist „ch" ein **eigener Knoten** (wie eine Mehrwort-Schlüsselphrase
+in AKE) oder nur eine **Kante** zwischen den Knoten c und h? Genau das
+trennen die Urteile `PAARE-EIGEN` und `BUCHSTABEN-ADDITIV` in Stufe A.
+
+Die Abduktions-Epistemik des Papers deckt sich mit der Hausregel dieser
+Untersuchung: Feuerkarten (Stufe A/B) sind Hypothesenerzeugung, keine
+Verifikation — die leistet erst die Maskierung in Stufe C. Dieselbe
+Trennung mahnt das **Methodenpapier** (`erikiss/spectral-probe-circuits`,
+§9.2: Selektivität allein ist kein Schaltkreisfinder — in diesem MoE
+bereits bestätigt, Phasen 14–15; §7.6: dieselbe Zerlegung ist je Modell
+kausal, wirkungslos oder hinderlich). Ein kleines Morse-Expertennetz
+wäre eine weitere Instanz von dessen Kernbefund (kleine kausale Gruppen
+je Fähigkeit) auf Router-Kanälen statt Attention-Köpfen.
 
 ## 2. Die Frage, formalisiert
 
