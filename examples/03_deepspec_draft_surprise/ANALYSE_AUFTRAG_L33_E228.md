@@ -18,7 +18,7 @@ einen Treffer, zweimal dasselbe Paar, null von 84 fremden.
 | | |
 |---|---|
 | Dossier (Daten, rund 4 GB) | https://drive.google.com/drive/folders/1uYdeDjiPjpHDETAPVqY-5jwNXkXUsZX4?usp=sharing |
-| Code, der es erzeugt hat | https://github.com/Erikiss/WeirdChat/tree/claude/repo-published-weights-u71yew/examples/03_deepspec_draft_surprise |
+| Code, der es erzeugt hat | https://github.com/Erikiss/WeirdChat/tree/main/examples/03_deepspec_draft_surprise |
 | Checkpoint | https://huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8 |
 
 `LIES_MICH.md` im Dossier beschreibt jede Datei, `INHALT.txt` listet alles mit Groessen.
@@ -91,6 +91,6 @@ Ziehungen, Feinscan der Auffaelligen gegen die empirische Null) ist der gangbare
 1. Befundbericht je Kernfrage: Effektgroessen, Nullen, und ausdruecklich das, was gegen
    den eigenen Befund spricht.
 2. Lauffaehiger Code fuer jede neue Messung (Colab, eine selbstversorgende Zelle - Muster
-   in `06_code/` und unter https://github.com/Erikiss/WeirdChat/tree/claude/repo-published-weights-u71yew/examples/03_deepspec_draft_surprise).
+   in `06_code/` und unter https://github.com/Erikiss/WeirdChat/tree/main/examples/03_deepspec_draft_surprise).
 3. Eine Liste dessen, was dieses Dossier NICHT hergibt und was ein naechster Lauf erheben
    muesste.
