@@ -125,6 +125,16 @@ def test_auftrag_traegt_die_kernfragen(L):
     assert "fable" not in t.lower() and "opus" not in t.lower()
 
 
+def test_auftrag_liegt_auch_im_repo(L):
+    """Der Auftrag existiert zweimal: im Drive-Dossier (wo die Daten liegen)
+       und im Repo (wo man ihn verlinken kann). Zwei Fassungen, eine Quelle -
+       weicht die Repo-Datei vom Notebook ab, ist eine von beiden veraltet,
+       und niemand wuesste welche."""
+    repo = os.path.join(HIER, "..", "ANALYSE_AUFTRAG_L33_E228.md")
+    assert os.path.isfile(repo), "ANALYSE_AUFTRAG_L33_E228.md fehlt im Repo"
+    assert open(repo, encoding="utf-8").read() == L["auftrag_text"]()
+
+
 def test_lies_mich_nennt_jeden_ordner(L):
     t = L["lies_mich_text"](12, 4, "liegt bei (37.5 GB, FP8-Original)")
     for o in L["ORDNER"]:
