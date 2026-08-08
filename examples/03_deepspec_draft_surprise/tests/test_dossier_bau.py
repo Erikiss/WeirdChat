@@ -123,6 +123,11 @@ def test_auftrag_traegt_die_kernfragen(L):
         assert muss in t, muss
     # Artefakt-Hygiene: kein Assistenten-Modellname in ausgelieferten Texten
     assert "fable" not in t.lower() and "opus" not in t.lower()
+    # Ein externer Leser muss OHNE Rueckfrage an Daten, Code und Checkpoint
+    # kommen - sonst ist das Dossier nur fuer den brauchbar, der es gebaut hat
+    for url in (L["DRIVE_FREIGABE"], L["CODE_URL"], L["MODELL_URL"]):
+        assert url in t, url
+    assert L["DRIVE_FREIGABE"].startswith("https://drive.google.com/drive/folders/")
 
 
 def test_auftrag_liegt_auch_im_repo(L):
@@ -137,6 +142,7 @@ def test_auftrag_liegt_auch_im_repo(L):
 
 def test_lies_mich_nennt_jeden_ordner(L):
     t = L["lies_mich_text"](12, 4, "liegt bei (37.5 GB, FP8-Original)")
+    assert L["DRIVE_FREIGABE"] in t and L["CODE_URL"] in t
     for o in L["ORDNER"]:
         assert o.rstrip("/") in t, o
     assert "12" in t and "4" in t and "37.5 GB" in t

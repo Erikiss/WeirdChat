@@ -13,8 +13,17 @@ getrennt ueber die anderen 41; kyrillische Kontrollarme sind ueberall unberuehrt
 Einzelscan gegen eine empirische Null aus 42 ratengleichen Fremdexperten fand zweimal genau
 einen Treffer, zweimal dasselbe Paar, null von 84 fremden.
 
-Alles Noetige liegt in diesem Ordner (`MyDrive/WeirdChat_Dossier_L33_E228/`). `LIES_MICH.md`
-beschreibt jede Datei; `INHALT.txt` listet alles mit Groessen.
+## Wo alles liegt
+
+| | |
+|---|---|
+| Dossier (Daten, rund 4 GB) | https://drive.google.com/drive/folders/1uYdeDjiPjpHDETAPVqY-5jwNXkXUsZX4?usp=sharing |
+| Code, der es erzeugt hat | https://github.com/Erikiss/WeirdChat/tree/claude/repo-published-weights-u71yew/examples/03_deepspec_draft_surprise |
+| Checkpoint | https://huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8 |
+
+`LIES_MICH.md` im Dossier beschreibt jede Datei, `INHALT.txt` listet alles mit Groessen.
+Der Ordner ist Beleg und nicht Arbeitsverzeichnis: bitte nichts darin aendern, sondern
+herunterladen und lokal arbeiten.
 
 ## Kernfrage 1 - Was aktiviert ihn?
 
@@ -66,8 +75,9 @@ Ziehungen, Feinscan der Auffaelligen gegen die empirische Null) ist der gangbare
 ## Fallstricke
 
 - Die Gewichte im Dossier sind bf16 (dequantisiert) - exakt so hat jede Messung gerechnet.
-  Das FP8-Original ist `Qwen/Qwen3.6-35B-A3B-FP8` auf Hugging Face; falls Platz war, liegt
-  eine Kopie unter `04_gewichte/vollstaendiger_checkpoint_fp8/`.
+  Das FP8-Original liegt unter https://huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8; falls Platz war, liegt eine Kopie unter
+  `04_gewichte/vollstaendiger_checkpoint_fp8/`. Ohne sie genuegen fuer alle drei
+  Kernfragen die Einzeltensoren in `04_gewichte/`.
 - Prefill- und Decode-Routing stimmen nur zu rund 81 % ueberein (Phase 19, H5; mittlere
   Ueberlappung 7.80 von 8). Die Aktivierungsmitschnitte hier sind lehrergefuehrte
   Prefill-Laeufe - fuer Aussagen ueber das Erzeugen selbst neu messen.
@@ -81,6 +91,6 @@ Ziehungen, Feinscan der Auffaelligen gegen die empirische Null) ist der gangbare
 1. Befundbericht je Kernfrage: Effektgroessen, Nullen, und ausdruecklich das, was gegen
    den eigenen Befund spricht.
 2. Lauffaehiger Code fuer jede neue Messung (Colab, eine selbstversorgende Zelle - Muster
-   in `06_code/`).
+   in `06_code/` und unter https://github.com/Erikiss/WeirdChat/tree/claude/repo-published-weights-u71yew/examples/03_deepspec_draft_surprise).
 3. Eine Liste dessen, was dieses Dossier NICHT hergibt und was ein naechster Lauf erheben
    muesste.
