@@ -384,6 +384,18 @@ rate-matched foreign experts as an empirical null (median rate deviation 0.0 %).
 One expert occupying 657 router slots on the Braille arm does what the other 41 with 4177
 slots cannot. Verdict: `EINZELNER-TRAEGT`.
 
+**Replicated (2026-08-08).** An independent repeat (`WIEDERHOLUNG=1`: fresh draws, a freshly
+drawn rate-matched comparison set, fresh empirical null) returned the same verdict and the
+same core. L33/E228 is again the **only** inner pair over the null (effect 1.50, p = 0.0044);
+again **zero** of the 42 foreign pairs clear it. In the repeat the single expert's effect
+equals the full set's exactly: BR1 65 → 10 % under KERN and under all 42 alike (5/48 both),
+Morse 90 → 19 % (9/48 both), REST still on both arms; Japanese is again carried by the other
+41 (KERN occupies 20 slots there and does nothing). Across the two runs: two hits in 84 inner
+single-ablations — the same pair twice — and zero in 84 foreign ones. Between the two, an
+accidental control: a rerun that still had `WIEDERHOLUNG=0` reproduced run 0 **bit for bit**
+across a fresh Colab container — the whole chain is deterministic, so machine noise is not a
+candidate explanation for either result.
+
 **What this decomposes.** The Phase-12 grouping "JA + BR1 + MORSE fall together under the 42"
 was two mechanisms wearing one set: kana switching is **distributed** over the other 41
 (consistent with the 80 % threshold), while character-wise transcoding into constructed symbol
@@ -394,10 +406,9 @@ intersection, and the true carrier fails the JA leg by construction. And it expl
 `WIRKUNG-IST-VERTEILT`: a single random eighth of the 42 misses L33/E228 with probability
 ~0.8, and did.
 
-**Caveats.** One run, one scan arm (BR1, the largest drop), n = 24 per single ablation; the
-notebook's own verdict text demands a `WIEDERHOLUNG=1` repeat before this is worth anything.
-The carrier's effect is 0.79–0.80 of the full set's, not 1.0 — the remainder is not
-attributable at this dose. A null on a single expert means "too small to measure" rather than
+**Caveats.** One scan arm (BR1, the largest drop), n = 24 per single ablation. The carrier's
+effect is 0.79–0.80 of the full set's in run 0 and 1.00 in run 1 — how much the remainder
+contributes is not settled at this dose. A null on a single expert means "too small to measure" rather than
 "inert": one expert blocks few slots. And L33/E228 entered the 42 via the routing difference
 at the JA decision point yet barely fires during kana production — recruited at the decision,
 working elsewhere; that dissociation is measured, not explained.
