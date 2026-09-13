@@ -123,3 +123,31 @@ def test_rangtabelle_zeigt_durchweg_kleine_effekte():
     assert len(zeilen) == 12
     zs = [float(z["z_vs_19"]) for z in zeilen]
     assert max(abs(wert) for wert in zs) < 0.8
+
+
+def test_der_einzige_positive_befund_ist_ein_gleichstand():
+    """``top3_longest_cycle8_run`` ist die einzige wahre Flagge des Laufs.
+
+    Sie entsteht nicht durch einen Vorsprung, sondern durch einen Gleichstand:
+    dreizehn der neunzehn Textfenster haben denselben Wert 3. State 60482 teilt
+    sich Rang 3 mit zwoelf anderen. Dasselbe gilt fuer ``best_phase_match_L4``,
+    wo sechzehn Fenster auf 0.75 liegen.
+    """
+    with open(DATEN / "TAIL207_ALL_METRICS.csv", encoding="utf-8") as handle:
+        zeilen = list(csv.DictReader(handle))
+    assert len(zeilen) == 19
+    laeufe = [float(z["cycle8_longest_run"]) for z in zeilen]
+    assert laeufe.count(3.0) == 13
+    assert sum(1 for wert in laeufe if wert > 3.0) == 2
+    phasen = [float(z["best_phase_match_L4"]) for z in zeilen]
+    assert phasen.count(0.75) == 16
+
+
+def test_erfolgsanteil_streut_eng_um_das_zufallsniveau():
+    """Alle neunzehn Fenster liegen nahe 1/8; der Zieltext liegt darunter."""
+    with open(DATEN / "TAIL207_ALL_METRICS.csv", encoding="utf-8") as handle:
+        zeilen = list(csv.DictReader(handle))
+    anteile = [float(z["cycle8_success_fraction"]) for z in zeilen if float(z["n_target_occurrences"]) > 50]
+    assert statistics.fmean(anteile) == pytest.approx(0.125, abs=0.02)
+    ziel = next(float(z["cycle8_success_fraction"]) for z in zeilen if z["state_id"] == "60482")
+    assert ziel < statistics.fmean(anteile)
