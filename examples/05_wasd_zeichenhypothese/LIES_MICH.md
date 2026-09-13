@@ -175,18 +175,44 @@ schwächere, aber immer noch interessante Frage, ob Pythia Zeichenidentität üb
 Tokengrenzen hinweg repräsentiert. Beides ist messbar; die Mischung aus beidem
 nicht.
 
+Für den ersten Weg liefert der Tokenizer ein ungewöhnlich sauberes Design, das in
+`experiment_traeger.py` ausformuliert ist. Weil `" WASD"` in genau zwei Stücke
+zerfällt, gibt es eine **minimale Kontrollfamilie**: alle Folgen `WAS?` mit einem
+anderen Großbuchstaben am Ende zerfallen ebenso in `['ĠWAS', '?']`. Erstes Token
+identisch, zweites Token ein einzelner Großbuchstabe wie `D`. Zwischen Ziel und
+Kontrolle unterscheidet sich damit **genau ein Token** — und zwar das, dem die
+Hypothese ihre Bedeutung zuschreibt. Fünf Kandidaten fallen heraus, weil `ASE`,
+`ASH`, `ASK`, `ASS` und `AST` eigene Vokabeleinträge sind; zwanzig bleiben. Dazu
+kommt `ASDW` → `['ĠASD', 'W']` als Reihenfolgekontrolle: dieselben Buchstaben,
+dieselbe Struktur, falsche Ordnung.
+
+Ein Nebenbefund schließt die Kleinschreibung aus: `" wasd"` zerfällt in
+`['Ġwas', 'd']`, und `Ġwas` ist das englische Wort *was* (Merge-ID 369, einer der
+frühesten Merges überhaupt). Jeder Effekt an der kleingeschriebenen Form wäre mit
+der Vergangenheitsform von *to be* vermengt.
+
 **Zweitens: eine Vorhersage, die schiefgehen kann.** "Interessante Erscheinungen"
-ist keine. Prüfbar wäre etwa: *Ein Eingriff an der Tokenposition von `D` in `WASD`
-verschiebt die Wahrscheinlichkeit von Bewegungsvokabular (`move`, `strafe`,
-`keys`) um mindestens x, während derselbe Eingriff an einem frequenzangepassten
-Kontrollbigramm dies nicht tut.* Mit Effektgröße und Richtung, vor dem Lauf
-aufgeschrieben.
+ist keine. Die Vorregistrierung in `experiment_traeger.py` verlangt beides: einen
+Beobachtungsteil (das Zieltoken hebt das Bewegungsvokabular um mindestens 0.5 nats
+gegenüber der **besten** Kontrolle, nicht gegenüber dem Kontrollmittel) und einen
+kausalen Teil (ein Eingriff an der Position des letzten Tokens stellt mindestens die
+Hälfte des Effekts wieder her, an mindestens zwei benachbarten Schichten, während
+derselbe Eingriff mit einer Kontrollquelle höchstens ein Fünftel überträgt). Ein
+einzelner positiver Teil zählt nicht. Die Regel ist gegen Ausreißer gebaut: eine
+einzige Kontrolle, die fast gleichauf liegt, kippt den Befund.
 
 **Drittens: abgestimmte Kontrollen.** Die Vergleichsbedingung darf sich nicht in der
-Buchstabenhäufigkeit unterscheiden, sonst misst man wieder die Häufigkeit. Für jede
-Zielzeichenfolge gehört eine Kontrollzeichenfolge dazu, die in Tokenzahl,
-Tokenhäufigkeit und Position übereinstimmt und sich nur in der Tastaturnachbarschaft
-unterscheidet.
+Buchstabenhäufigkeit unterscheiden, sonst misst man wieder die Häufigkeit. Die
+`WAS?`-Familie erfüllt das von selbst, weil alle Varianten dasselbe erste Token
+teilen. Der Trockenlauf prüft das vor jedem GPU-Lauf nach und verwirft, was nicht
+passt:
+
+```bash
+python examples/05_wasd_zeichenhypothese/experiment_traeger.py \
+  --tokenizer tokenizer.json --trockenlauf
+```
+
+Er meldet 20 strukturgleiche Kontrollen, fünf verworfene und 176 Messpunkte.
 
 Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 
@@ -241,11 +267,13 @@ Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
 |---|---|
 | `zeichensatz_statistik.py` | Buchstabendichte gegen drei Nullmodelle, inklusive des frequenzangepassten |
 | `tokenizer_sonde.py` | prüft vor einem GPU-Lauf, ob eine Zeichenfolge das Netz als Einheit erreicht |
+| `experiment_traeger.py` | der vorregistrierte Nachfolgeversuch: Design, Strukturprüfung, Entscheidungsregel |
 | `daten/` | die Originalausgaben der drei Läufe, damit die Nachrechnung nicht von Drive abhängt |
 | `tests/test_zeichensatz_statistik.py` | Kalibrierung gegen gepflanzte Wahrheiten: neutraler Text darf nicht ausschlagen, gepflanzte An- und Abreicherung muss gefunden werden |
 | `tests/test_nullmodell_verzerrung.py` | der Beleg für die Verzerrung, direkt an den Messdaten |
 | `tests/test_zyklus_und_periode.py` | was die Zyklus- und Positionsanalyse wirklich zeigt |
-| `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der frueheren McQuarrie-Linie |
+| `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der früheren McQuarrie-Linie |
+| `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
 
 Nachrechnen:
 
