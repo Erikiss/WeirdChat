@@ -291,7 +291,8 @@ Zeichenbild, sondern in der **Tokenisierung**:
 | `Mc0uarrie` | 4 | `ĠMc` `0` `uar` `rie` |
 | `McQuarr1e` | 5 | `ĠMc` `Qu` `arr` `1` `e` |
 
-Daraus folgen zwei Dinge, die im Bericht nicht auftauchen:
+Daraus folgen zwei Dinge, die im Bericht nicht auftauchen — und dazu eine dritte
+Auffälligkeit, die keine Folgerung ist, sondern eine Bitte um Nachsehen:
 
 **Der analysierte Übergang existiert nicht überall.** Die Auswertung dreht sich um
 das Residuum des Übergangs `Qu → ar`. In den Varianten mit O, Null oder X gibt es
@@ -306,6 +307,22 @@ Fünf-Token-Varianten bei 98k und 99k zwar besser ab, aber nicht signifikant
 (p = 0.181 und p = 0.129), und bei 97k dreht das Vorzeichen. Zehn Varianten sind zu
 wenig, um den Faktor auszuschließen oder nachzuweisen. Er bleibt unkontrolliert; ein
 Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
+
+**Eine Zahl, die zweimal dasteht.** In der Residuentabelle desselben Berichts steht
+die Spalte `residual_rms_percentile_under_test_names` mit vier Werten:
+
+| Checkpoint | Schicht | `residual_rms` | Perzentil |
+|---|---|---|---|
+| 98 000 | 14 | 1.247435 | **55.675333** |
+| 98 000 | 20 | 1.775950 | 45.466075 |
+| 99 000 | 14 | 1.239061 | 55.421687 |
+| 99 000 | 20 | 1.824206 | **55.675333** |
+
+Zwei Zeilen mit deutlich verschiedenem Residuum — 1.247435 gegen 1.824206, also fast
+fünfzig Prozent Unterschied — tragen ein auf sechs Nachkommastellen identisches
+Perzentil. Das kann stimmen, wenn die beiden Bezugsverteilungen entsprechend
+auseinanderliegen. Wahrscheinlicher ist ein versehentlich übernommener Wert. Das ist
+kein Befund, sondern ein Punkt zum Nachsehen im Auswertungscode.
 
 ## 6. Der parallele Lauf am selben Textfenster
 
