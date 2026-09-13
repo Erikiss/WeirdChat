@@ -129,7 +129,7 @@ class SetStatistics:
     observed_density: float
     expected_density: float
     observed_over_expected: float
-    nulls: dict[str, NullResult] = field(default_factory=dict)
+    nulls: dict[str, NullResult] = field(default_factory=dict[str, NullResult])
 
     def verdict(self, alpha: float = 0.05) -> str:
         """Urteil auf Basis des frequenzangepassten Nullmodells."""

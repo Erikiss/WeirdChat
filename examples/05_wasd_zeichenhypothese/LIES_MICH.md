@@ -108,7 +108,8 @@ Großschreibung — kommt im Zieltext **halb so oft** vor wie im Gruppenmittel
 Vor jedem GPU-Lauf lässt sich eine Vorfrage klären: **Wie kommt `WASD` überhaupt im
 Modell an?** Ein Transformer sieht keine Buchstaben, sondern Token-IDs.
 
-Der GPT-NeoX-Tokenizer von Pythia (50 277 Einträge) enthält:
+Der GPT-NeoX-Tokenizer von Pythia (50 254 Vokabeleinträge, 50 277 inklusive
+Sondertoken) enthält:
 
 ```
 'WASD'      -> nicht im Vokabular      'WASD'  zerfällt in  ['W', 'AS', 'D']

@@ -21,18 +21,39 @@ Aufruf::
 
 ``tokenizer.json`` stammt aus dem Modell-Repository, zum Beispiel
 ``https://huggingface.co/EleutherAI/pythia-1.4b/resolve/main/tokenizer.json``.
-Benoetigt nur das Paket ``tokenizers``, nicht ``torch``.
+
+Vokabelabfragen brauchen nur die Standardbibliothek. Nur das Zerlegen von Text in
+Tokens braucht zusaetzlich das Paket ``tokenizers`` (nicht ``torch``); es wird erst
+in ``main`` importiert, damit der Rest des Moduls ohne diese Abhaengigkeit nutzbar
+und pruefbar bleibt.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Protocol, Sequence, cast
 
 #: GPT-NeoX/GPT-2-Byte-Kodierung: fuehrendes Leerzeichen wird zu diesem Zeichen.
 SPACE_MARKER = "Ġ"
+
+
+class Kodierung(Protocol):
+    """Das, was ein Tokenizer zurueckgibt - nur die hier benutzten Felder."""
+
+    @property
+    def ids(self) -> list[int]: ...
+
+    @property
+    def tokens(self) -> list[str]: ...
+
+
+class TokenizerLike(Protocol):
+    """Minimalschnittstelle, damit das Modul ohne das Paket typpruefbar bleibt."""
+
+    def encode(self, sequence: str, /) -> Kodierung: ...
 
 
 @dataclass(frozen=True)
@@ -51,7 +72,9 @@ class ZielBefund:
 
     @property
     def ist_eigenes_token(self) -> bool:
-        return self.eigenes_token is not None or self.eigenes_token_mit_leerzeichen is not None
+        return (
+            self.eigenes_token is not None or self.eigenes_token_mit_leerzeichen is not None
+        )
 
     def urteil(self) -> str:
         if self.ist_eigenes_token:
@@ -64,11 +87,27 @@ class ZielBefund:
 def lade_vokabular(tokenizer_json: str) -> dict[str, int]:
     """Liest das Vokabular direkt aus der Datei - ohne das Modell zu laden."""
     with open(tokenizer_json, encoding="utf-8") as handle:
-        daten = json.load(handle)
-    vokab = daten.get("model", {}).get("vocab")
-    if not isinstance(vokab, dict):
+        daten: object = json.load(handle)
+    if not isinstance(daten, dict):
+        raise ValueError("tokenizer.json enthaelt kein Objekt")
+    modell = cast("dict[str, object]", daten).get("model")
+    if not isinstance(modell, dict):
+        raise ValueError("tokenizer.json enthaelt kein model-Objekt")
+    roh = cast("dict[str, object]", modell).get("vocab")
+    if not isinstance(roh, dict):
         raise ValueError("tokenizer.json enthaelt kein model.vocab-Objekt")
+    vokab: dict[str, int] = {}
+    for eintrag, wert in cast("dict[object, object]", roh).items():
+        if isinstance(eintrag, str) and isinstance(wert, int):
+            vokab[eintrag] = wert
+    if not vokab:
+        raise ValueError("model.vocab ist leer oder hat ein unerwartetes Format")
     return vokab
+
+
+def ohne_leerzeichenmarke(eintrag: str) -> str:
+    """Entfernt die fuehrende Leerzeichenmarke eines Vokabeleintrags."""
+    return eintrag[1:] if eintrag.startswith(SPACE_MARKER) else eintrag
 
 
 def pruefe_ziel(
@@ -78,7 +117,9 @@ def pruefe_ziel(
 ) -> ZielBefund:
     """Baut den Befund fuer eine Zeichenfolge aus Vokabular und Zerlegung."""
     treffer = tuple(
-        eintrag for eintrag in vokab if ziel.lower() in eintrag.lower().replace(SPACE_MARKER, "")
+        eintrag
+        for eintrag in vokab
+        if ziel.lower() in ohne_leerzeichenmarke(eintrag).lower()
     )
     return ZielBefund(
         ziel=ziel,
@@ -99,16 +140,28 @@ def reine_zielbuchstaben_tokens(vokab: Iterable[str], buchstaben: str) -> list[s
     Orthographie ein Sondersignal traegt.
     """
     menge = set(buchstaben.lower()) | set(buchstaben.upper())
-    treffer = []
+    treffer: list[str] = []
     for eintrag in vokab:
-        kern = eintrag[1:] if eintrag.startswith(SPACE_MARKER) else eintrag
+        kern = ohne_leerzeichenmarke(eintrag)
         if kern and all(zeichen in menge for zeichen in kern):
             treffer.append(eintrag)
     return treffer
 
 
+def _lade_tokenizer(pfad: str) -> TokenizerLike:
+    """Laedt den echten Tokenizer; nur hier haengt das Modul am Paket ``tokenizers``.
+
+    Der Import laeuft ueber ``importlib``, damit das Modul auch dort typpruefbar
+    bleibt, wo ``tokenizers`` nicht installiert ist - etwa in der Typpruefung dieses
+    Projekts, das die Bibliothek nicht als Abhaengigkeit fuehrt.
+    """
+    modul = importlib.import_module("tokenizers")
+    lader: Callable[[str], object] = getattr(modul, "Tokenizer").from_file
+    return cast(TokenizerLike, lader(pfad))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="Tokenizer-Sonde")
     parser.add_argument("--tokenizer", required=True, help="Pfad zu tokenizer.json")
     parser.add_argument(
         "--ziel",
@@ -124,12 +177,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--text", default=None, help="optionaler Text zum Tokenisieren")
     args = parser.parse_args(argv)
 
-    ziele = args.ziel or ["WASD", "wasd", "QERF"]
-    vokab = lade_vokabular(args.tokenizer)
+    tokenizer_pfad = cast(str, args.tokenizer)
+    rohziele = cast("list[str] | None", args.ziel)
+    buchstaben = cast(str, args.buchstaben)
+    text = cast("str | None", args.text)
 
-    from tokenizers import Tokenizer  # lokaler Import: nur hier noetig
-
-    tokenizer = Tokenizer.from_file(args.tokenizer)
+    ziele = rohziele if rohziele else ["WASD", "wasd", "QERF"]
+    vokab = lade_vokabular(tokenizer_pfad)
+    tokenizer = _lade_tokenizer(tokenizer_pfad)
 
     print(f"Vokabulargroesse: {len(vokab)}")
     for ziel in ziele:
@@ -141,17 +196,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"  Teilketten-Treffer:         {list(befund.teilketten_treffer)}")
         print(f"  Urteil:                     {befund.urteil()}")
 
-    rein = reine_zielbuchstaben_tokens(vokab, args.buchstaben)
+    rein = reine_zielbuchstaben_tokens(vokab, buchstaben)
     anteil = 100 * len(rein) / len(vokab)
     print(
-        f"\nTokens ausschliesslich aus {args.buchstaben}: {len(rein)} "
+        f"\nTokens ausschliesslich aus {buchstaben}: {len(rein)} "
         f"({anteil:.2f} Prozent des Vokabulars)"
     )
     haeufigste = sorted(rein, key=lambda eintrag: vokab[eintrag])[:20]
     print(f"  frueheste Merges: {haeufigste}")
 
-    if args.text:
-        kodiert = tokenizer.encode(args.text)
+    if text:
+        kodiert = tokenizer.encode(text)
         print(f"\nText: {len(kodiert.ids)} Tokens")
         for index, (tid, tok) in enumerate(zip(kodiert.ids, kodiert.tokens)):
             print(f"  {index:4d}  {tid:6d}  {tok!r}")

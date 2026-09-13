@@ -69,7 +69,7 @@ def test_die_matrix_wird_von_e_dominiert():
         buchstabe: sum(matrix[(buchstabe, ziel)] for ziel in ZYKLUS) for buchstabe in ZYKLUS
     }
     assert ausgaenge["E"] == 81
-    assert max(ausgaenge, key=ausgaenge.get) == "E"
+    assert max(ausgaenge, key=lambda buchstabe: ausgaenge[buchstabe]) == "E"
     assert ausgaenge["Q"] == 1
 
 
