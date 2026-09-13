@@ -1,0 +1,13 @@
+abfrage,tokenfolge,anzahl,index,bemerkung
+the,▁the,9229350572,v4_piletrain_llama,Kalibrierung haeufigstes Wort
+keyboard,▁keyboard,2791750,v4_piletrain_llama,Bezugswort mit eigenem Token
+Meteorological,▁Meteor|ological,115452,v4_piletrain_llama,Wort aus dem Zielfenster
+McQuarrie,▁Mc|Qu|ar|rie,17994,v4_piletrain_llama,Name aus dem Zielfenster
+strafe,▁stra|fe,17853,v4_piletrain_llama,Bewegungsvokabular
+WASD,▁W|AS|D,13870,v4_piletrain_llama,das Tastenkuerzel
+Christopher McQuarrie,▁Christopher|▁Mc|Qu|ar|rie,4278,v4_piletrain_llama,voller Name
+WASD keys,▁W|AS|D|▁keys,2776,v4_piletrain_llama,20 Prozent aller WASD-Vorkommen
+wasd,▁was|d,2486,v4_piletrain_llama,kleingeschrieben, mit dem Wort was vermengt
+Wasd,▁Was|d,605,v4_piletrain_llama,Anfangsgross, enthaelt auch Wasdale
+use WASD,▁use|▁W|AS|D,574,v4_piletrain_llama,typische Anleitungsformulierung
+QERF,▁Q|ER|F,10,v4_piletrain_llama,die Nachbartasten

@@ -24,14 +24,21 @@ Standardabweichung                            0.029075
 State 60482                                   0.386819
 z                                             -0.7508
 Perzentil                                     18.83
-WASD als eigenstaendiges Wort                  0 (in keiner Schreibweise)
+WASD als eigenstaendiges Wort                  0 in dieser Stichprobe
 ===========================================  ==============
 
-Zur zweiten Zeile eine Warnung in eigener Sache: eine erste Fassung dieses Skripts
-suchte ``wasd`` als **Teilkette** und meldete 22 Treffer. Alle stammten aus dem
-englischen Ortsnamen *Wasdale* und der Domain *wasdaleweb.com*, beide aus einem
-einzigen Reisefuehrer-Dokument. Kein einziger war das Tastenkuerzel. Seither zaehlt
-``zaehle_varianten`` nur an Wortgrenzen und schluesselt nach Schreibweise auf.
+**Die letzte Zeile beantwortet die Basisratenfrage nicht.** Die Stichprobe umfasst
+etwa ein Vierzigtausendstel des Pile. Der Volltextindex infini-gram zaehlt im ganzen
+Trainingssatz 13 870 Vorkommen von `` WASD``; in einer Stichprobe dieser Groesse sind
+davon rund 0.35 zu erwarten. Null zu finden war also das Erwartbare. Die exakten
+Korpuszahlen stehen in ``daten/INFINI_GRAM_PILE_HAEUFIGKEITEN.csv``; dieses Skript
+bleibt fuer die **Dichteverteilung** zustaendig, fuer die eine Stichprobe genuegt.
+
+Eine zweite Warnung in eigener Sache: eine erste Fassung suchte ``wasd`` als
+**Teilkette** und meldete 22 Treffer. Alle stammten aus dem englischen Ortsnamen
+*Wasdale* und der Domain *wasdaleweb.com* aus einem einzigen Reisefuehrer-Dokument.
+Seither zaehlt ``zaehle_varianten`` nur an Wortgrenzen und schluesselt nach
+Schreibweise auf.
 
 Aufruf::
 
@@ -154,11 +161,10 @@ def zaehle_zeichenfolge(text: str, folge: str) -> int:
     """Zaehlt die Zeichenfolge als **Wort**, in den drei ueblichen Schreibweisen.
 
     Die Wortgrenze ist hier keine Feinheit, sondern der Unterschied zwischen Messen
-    und Danebenmessen. Eine reine Teilkettensuche nach ``wasd`` findet in The Pile
-    vor allem den englischen Ortsnamen *Wasdale* (Wasdale Head im Lake District)
-    und die Domain *wasdaleweb.com* - und keinen einzigen Beleg fuer das
-    Tastenkuerzel. Ohne Wortgrenze haette diese Auswertung 22 Treffer gemeldet, von
-    denen keiner der gesuchte war.
+    und Danebenmessen. Eine reine Teilkettensuche nach ``wasd`` fand in dieser
+    Stichprobe vor allem den englischen Ortsnamen *Wasdale* (Wasdale Head im Lake
+    District) und die Domain *wasdaleweb.com*: 22 Treffer, von denen keiner das
+    Tastenkuerzel war.
     """
     return sum(zaehle_varianten(text, folge).values())
 

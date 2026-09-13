@@ -5,8 +5,10 @@ vollständiges Inventar des Drive-Ordners `Colab_Pythia_Results`: **1 757 Eintr�
 210 Ordner, 1 547 Dateien, rund 2.11 GiB**, aufgenommen am 13.09.2026.
 
 Untersuchungsgegenstand ist durchgehend **EleutherAI/pythia-1.4b** in den
-Checkpoints 97 000 bis 100 000, gemessen mit einem Suszeptibilitätsatlas nach der
-Methodik des Forschungsinstituts Timaeus.
+Checkpoints 97 000 bis 100 000, gemessen mit einer Suszeptibilitätsmatrix nach der
+Methodik des Forschungsinstituts Timaeus. Das im Projekt gebräuchliche Wort „Atlas"
+ist eine Eigenprägung; in den zugrunde liegenden Arbeiten heißt die Größe
+Suszeptibilitäts- oder Antwortmatrix.
 
 ---
 
@@ -104,5 +106,11 @@ etwas auffiel.
 4. **Die Vorfrage vor dem GPU-Lauf.** Ob eine Zeichenfolge das Netz überhaupt als
    Einheit erreicht, klärt `tokenizer_sonde.py` in Sekunden. Für `WASD` lautete die
    Antwort nein — das hätte drei Läufe erspart.
+5. **Die eigene Methode nachlesen.** Der Schätzer der Suszeptibilitäten liefert
+   laut seiner eigenen Beschreibung ein komponentenabhängiges Vielfaches, nicht die
+   Größe selbst. Rohwerte zwischen Schichten zu vergleichen — „Schicht 14 reagiert
+   stärker" — ist deshalb nicht interpretierbar. Einzelheiten in
+   [`METHODEN_BRIEFING.md`](METHODEN_BRIEFING.md).
 
-Die ausführliche Begründung steht in [`LIES_MICH.md`](LIES_MICH.md).
+Die ausführliche Begründung steht in [`LIES_MICH.md`](LIES_MICH.md), die
+Literatur- und Methodenlage in [`METHODEN_BRIEFING.md`](METHODEN_BRIEFING.md).

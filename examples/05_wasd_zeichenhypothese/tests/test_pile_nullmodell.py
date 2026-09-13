@@ -134,12 +134,13 @@ def test_der_korpusmittelwert_liegt_nahe_der_englischen_erwartung():
     assert float(str(befund["erwartete_dichte_englisch"])) == pytest.approx(0.4134, abs=1e-4)
 
 
-def test_wasd_kommt_im_korpus_ueberhaupt_nicht_vor():
-    """Null Vorkommen als eigenstaendiges Wort in 20.9 Millionen Zeichen.
+def test_die_stichprobe_findet_kein_wasd_und_kann_das_auch_nicht():
+    """Null Vorkommen in 20.9 Millionen Zeichen - und das sagt nichts ueber das Korpus.
 
-    Das stuetzt den Tokenizer-Befund: eine Zeichenfolge, die im Korpus gar nicht
-    auftaucht, bekommt im BPE-Verfahren keinen eigenen Merge - und kann im
-    Zielfenster auch nichts ausloesen.
+    Der Volltextindex zaehlt im ganzen Pile 13 870 Vorkommen; in einer Stichprobe
+    dieser Groesse sind rund 0.35 zu erwarten. Null zu finden ist das Erwartbare,
+    kein Befund. Die Basisratenfrage beantwortet
+    ``tests/test_korpus_haeufigkeiten.py``, nicht diese Datei.
     """
     befund = _befund()
     assert befund["wasd_vorkommen"] == 0

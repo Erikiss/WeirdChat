@@ -140,19 +140,44 @@ Sondertoken) enthält:
 
 Kein einziger Vokabeleintrag enthält `wasd` als Teilkette, in keiner Schreibweise.
 Da BPE-Merges nach Häufigkeit entstehen, ist das ein Hinweis auf die Basisrate — und
-die lässt sich direkt nachzählen. In derselben Stichprobe von 2 863 Pile-Dokumenten
-(20 899 761 Zeichen) kommt `WASD` als eigenständiges Wort **kein einziges Mal** vor,
-in keiner Schreibweise. Eine Zeichenfolge, die im Trainingskorpus gar nicht
-auftaucht, bekommt keinen eigenen Merge — und kann im Textfenster State 60482 auch
-nichts auslösen, wo sie ebenfalls nicht steht.
+die lässt sich exakt nachzählen. Der Volltextindex **infini-gram** liefert über den
+gesamten Pile-Trainingssatz (`v4_piletrain_llama`, rund 380 Milliarden Token):
 
-> **Warnung in eigener Sache.** Die erste Fassung dieser Zählung suchte `wasd` als
-> Teilkette und meldete 22 Treffer. Alle stammten aus dem englischen Ortsnamen
-> *Wasdale* und der Domain *wasdaleweb.com*, beide aus einem einzigen
-> Reiseführer-Dokument; keiner war das Tastenkürzel. Der Fehler ist derselbe, den
-> diese Mappe an den Läufen kritisiert: eine Zahl, die plausibel aussieht, weil
-> niemand nachgesehen hat, was sie zählt. `zaehle_varianten` zählt jetzt nur an
-> Wortgrenzen und schlüsselt nach Schreibweise auf, und ein Test hält den Fall fest.
+| Zeichenfolge | Vorkommen im ganzen Pile |
+|---|---|
+| ` the` | 9 229 350 572 |
+| ` keyboard` | 2 791 750 |
+| ` Meteorological` | 115 452 |
+| ` McQuarrie` | 17 994 |
+| ` strafe` | 17 853 |
+| **` WASD`** | **13 870** |
+| ` WASD keys` | 2 776 |
+| ` use WASD` | 574 |
+| ` QERF` | 10 |
+
+Damit ist die Lage präziser als „selten": `WASD` kommt vor, rund zweihundertmal
+seltener als `keyboard`, und **jedes fünfte Vorkommen** wird direkt von `keys`
+gefolgt. Das Modell hat die Wendung also gesehen. Für einen eigenen BPE-Merge ist
+13 870 in 380 Milliarden Token trotzdem viel zu wenig — die relative Häufigkeit liegt
+bei etwa 3.6 · 10⁻⁸.
+
+Entscheidend bleibt der andere Punkt: **im Textfenster State 60482 steht `WASD`
+kein einziges Mal.** Was dort gezählt wurde, sind acht über den ganzen Text
+verstreute Buchstaben, nicht das Tastenkürzel.
+
+> **Zwei Warnungen in eigener Sache.** Erstens: Die erste Fassung der Zählung suchte
+> `wasd` als Teilkette in einer Stichprobe und meldete 22 Treffer — sämtlich der
+> englische Ortsname *Wasdale* und die Domain *wasdaleweb.com* aus einem einzigen
+> Reiseführer-Dokument. Zweitens: Nach der Korrektur auf Wortgrenzen meldete dieselbe
+> Stichprobe null Treffer, woraus hier zwischenzeitlich „kommt im Trainingskorpus
+> überhaupt nicht vor" wurde. Auch das war falsch. Die Stichprobe umfasst 20.9
+> Millionen Zeichen, also etwa ein Vierzigtausendstel des Pile; bei 13 870 Vorkommen
+> im Ganzen sind dort rund **0.35 Treffer zu erwarten**. Null zu finden war das
+> Erwartbare, nicht der Befund. Erst der Volltextindex beantwortet die Frage.
+>
+> Beide Fehler sind derselbe, den diese Mappe an den Läufen kritisiert: eine Zahl für
+> eine Antwort halten, ohne zu prüfen, was sie zählen kann. Sie stehen hier, weil ein
+> Dossier, das Nullmodelle einfordert, seine eigenen aushalten muss.
 
 Umgekehrt bestehen **931 Vokabeleinträge (1.85 Prozent)** ausschließlich aus
 WASDQERF-Buchstaben — darunter die frühesten und häufigsten Merges des Englischen:
@@ -193,7 +218,47 @@ erlauben. Die Permutationskorrektur fängt das ab; der rohe NMI-Wert täte es ni
 
 ---
 
-## 4. Was jetzt zu tun wäre
+## 4. Was die publizierte Methode selbst sagt
+
+Die Recherche in [`METHODEN_BRIEFING.md`](METHODEN_BRIEFING.md) hat einen Punkt
+zutage gefördert, der über die WASD-Frage hinausgeht und die gesamte Messlinie
+betrifft. Er steht in der Methodenbeschreibung des Verfahrens, das dieses Projekt
+benutzt.
+
+**Der Schätzer liefert nicht die Suszeptibilität, sondern ein Vielfaches davon.**
+Die Anleitung zur Skalierung der Suszeptibilitäten schreibt ausdrücklich, der
+Zwei-Ketten-Schätzer ziele auf die *renormalisierte* Größe `Z_full/Z_C · χ` — „not
+for the population susceptibility itself". Der unbekannte Vorfaktor hängt von der
+Komponente ab, nicht vom gemessenen Token, und wird erst durch die spaltenweise
+Standardisierung absorbiert.
+
+Daraus folgt unmittelbar: **Ein Vergleich von Rohwerten zwischen Schichten ist
+nicht interpretierbar.** Ein Satz wie „Schicht 14 und 20 reagieren stärker" setzt
+genau das voraus, was der Schätzer nicht liefert. Erst nach der Standardisierung
+sind Komponenten vergleichbar, und dann ist die Aussage eine über das *Profil*, nicht
+über die Höhe.
+
+Zwei weitere Punkte derselben Art:
+
+- Die Zeilenzentrierung entfernt nach Beschreibung der Autoren „the uniform mode".
+  Eine Aussage der Form „X ist global suszeptibler" ist damit **per Konstruktion**
+  aus den standardisierten Daten entfernt — sie kann dort weder bestätigt noch
+  widerlegt werden.
+- Die Zahl der gefundenen Cluster hängt stark an der Auswertungskette, nicht am
+  Modell; und die Autoren berichten selbst, dass schon eine **Gauß-Grundlinie ohne
+  jeden Beitrag der Verlustlandschaft interpretierbare Cluster liefert**. Ein
+  interpretierbarer Cluster ist also für sich genommen kein Befund.
+
+Dazu eine Nomenklatur-Notiz: Das Wort „Atlas" ist in den zugrunde liegenden Arbeiten
+kein Fachbegriff; dort heißt es Suszeptibilitätsmatrix, Antwortmatrix oder Cluster
+Map. Als Eigenprägung ist das in Ordnung, sollte aber als solche gekennzeichnet sein,
+damit ein externer Leser nicht nach einer Methode sucht, die unter diesem Namen nicht
+existiert.
+
+Das Briefing kennzeichnet jede Aussage danach, ob sie an der Primärquelle geprüft
+wurde. Vor dem Zitieren lohnt ein Blick auf die Kennzeichnung.
+
+## 5. Was jetzt zu tun wäre
 
 Die Hypothese ist nicht widerlegt — sie wurde bisher nur an einer Stelle geprüft, an
 der sie gar keine Vorhersage macht. Eine Buchstabendichte im Text sagt nichts
@@ -275,7 +340,7 @@ Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 
 ---
 
-## 5. Rückblick: ein unkontrollierter Faktor in der McQuarrie-Linie
+## 6. Rückblick: ein unkontrollierter Faktor in der McQuarrie-Linie
 
 Die vorherige Arbeitslinie verglich Oberflächenvarianten des Namens — Großschreibung,
 Homoglyphen, Tippfehler — und maß je Variante einen Nutzen aus der wahren Ziel-NLL
@@ -323,7 +388,7 @@ Perzentil. Das kann stimmen, wenn die beiden Bezugsverteilungen entsprechend
 auseinanderliegen. Wahrscheinlicher ist ein versehentlich übernommener Wert. Das ist
 kein Befund, sondern ein Punkt zum Nachsehen im Auswertungscode.
 
-## 6. Warum die Vorgängerlinie stecken blieb
+## 7. Warum die Vorgängerlinie stecken blieb
 
 Zwischen dem McQuarrie-Phänomen und dem WASD-Umschwung liegen zwei Läufe, die
 denselben Ort mit Zeichen-Hypothesen angingen. Beide sind negativ ausgefallen, und
@@ -411,7 +476,7 @@ Aus `config.json` von `EleutherAI/pythia-1.4b`, nachgeladen und in
   am oberen Rand aus unbenutzten Zeilen besteht. Eine bitweise Operation auf IDs kann
   dort hinzeigen, wo nie etwas trainiert wurde.
 
-## 7. Der parallele Lauf am selben Textfenster
+## 8. Der parallele Lauf am selben Textfenster
 
 Am selben 13. September lief ein zweiter Versuch, `ological_c677b4881415`, der nicht
 Buchstaben zählt, sondern eingreift. Er verdient eine eigene Notiz, weil er
@@ -483,7 +548,7 @@ ganze Fenster verteilt. Keine davon hat bisher einen Effekt gezeigt, der außerh
 des Endtokens liegt. Das ist kein Grund aufzuhören — aber es ist ein Grund, den
 nächsten Versuch an mehr als einem Text zu führen.
 
-## 8. Was in dieser Mappe liegt
+## 9. Was in dieser Mappe liegt
 
 | Datei | Inhalt |
 |---|---|
@@ -492,6 +557,7 @@ nächsten Versuch an mehr als einem Text zu führen.
 | `experiment_traeger.py` | der vorregistrierte Nachfolgeversuch: Design, Strukturprüfung, Entscheidungsregel |
 | `pile_nullmodell.py` | das Dokument-Nullmodell aus dem Trainingskorpus, plus die Basisrate von WASD |
 | `PROJEKTSTAND.md` | die Gesamtuntersuchung im Überblick: sieben Abschnitte, drei Arbeitslinien, was am 13.09. anders ist |
+| `METHODEN_BRIEFING.md` | die Literatur- und Methodenrecherche: was die publizierte Suszeptibilitätsmethode misst, Patching-Checkliste, Numerik, Basisraten, Quellen |
 | `daten/` | die Originalausgaben der drei Läufe, damit die Nachrechnung nicht von Drive abhängt |
 | `tests/test_zeichensatz_statistik.py` | Kalibrierung gegen gepflanzte Wahrheiten: neutraler Text darf nicht ausschlagen, gepflanzte An- und Abreicherung muss gefunden werden |
 | `tests/test_nullmodell_verzerrung.py` | der Beleg für die Verzerrung, direkt an den Messdaten |
@@ -516,7 +582,7 @@ python examples/05_wasd_zeichenhypothese/tokenizer_sonde.py \
 
 ---
 
-## 9. Grenzen dieser Mappe
+## 10. Grenzen dieser Mappe
 
 - Alles hier ist Text- und Tokenizer-Statistik. Es wird **keine** Aussage darüber
   getroffen, was Pythia in den mittleren Schichten tut; dafür braucht es einen
