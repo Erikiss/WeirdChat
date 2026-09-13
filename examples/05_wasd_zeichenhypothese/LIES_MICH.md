@@ -204,7 +204,38 @@ Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 
 ---
 
-## 5. Was in dieser Mappe liegt
+## 5. Rückblick: ein unkontrollierter Faktor in der McQuarrie-Linie
+
+Die vorherige Arbeitslinie verglich Oberflächenvarianten des Namens — Großschreibung,
+Homoglyphen, Tippfehler — und maß je Variante einen Nutzen aus der wahren Ziel-NLL
+(Lauf `20260906_120822_ba0e3d`). Die Varianten unterscheiden sich aber nicht nur im
+Zeichenbild, sondern in der **Tokenisierung**:
+
+| Variante | Tokens | Zerlegung |
+|---|---|---|
+| `McQuarrie` | 4 | `ĠMc` `Qu` `ar` `rie` |
+| `MCQUARRIE` | 5 | `ĠMC` `QU` `AR` `RI` `E` |
+| `McOuarrie` | 4 | `ĠMc` `O` `uar` `rie` |
+| `Mc0uarrie` | 4 | `ĠMc` `0` `uar` `rie` |
+| `McQuarr1e` | 5 | `ĠMc` `Qu` `arr` `1` `e` |
+
+Daraus folgen zwei Dinge, die im Bericht nicht auftauchen:
+
+**Der analysierte Übergang existiert nicht überall.** Die Auswertung dreht sich um
+das Residuum des Übergangs `Qu → ar`. In den Varianten mit O, Null oder X gibt es
+weder `Qu` noch `ar`; dort steht `O` gefolgt von `uar`. Über die Varianten hinweg
+wird also nicht dieselbe Größe verglichen.
+
+**Die Tokenzahl schwankt.** Ein Nutzenmaß über eine unterschiedliche Zahl
+vorhergesagter Tokens ist zwischen Varianten nicht ohne Weiteres vergleichbar. Der
+Verdacht lässt sich an den vorliegenden Zahlen prüfen — und **bestätigt sich nicht**:
+Im exakten Permutationstest über alle 210 Aufteilungen schneiden die
+Fünf-Token-Varianten bei 98k und 99k zwar besser ab, aber nicht signifikant
+(p = 0.181 und p = 0.129), und bei 97k dreht das Vorzeichen. Zehn Varianten sind zu
+wenig, um den Faktor auszuschließen oder nachzuweisen. Er bleibt unkontrolliert; ein
+Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
+
+## 6. Was in dieser Mappe liegt
 
 | Datei | Inhalt |
 |---|---|
@@ -214,6 +245,7 @@ Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 | `tests/test_zeichensatz_statistik.py` | Kalibrierung gegen gepflanzte Wahrheiten: neutraler Text darf nicht ausschlagen, gepflanzte An- und Abreicherung muss gefunden werden |
 | `tests/test_nullmodell_verzerrung.py` | der Beleg für die Verzerrung, direkt an den Messdaten |
 | `tests/test_zyklus_und_periode.py` | was die Zyklus- und Positionsanalyse wirklich zeigt |
+| `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der frueheren McQuarrie-Linie |
 
 Nachrechnen:
 
@@ -229,7 +261,7 @@ python examples/05_wasd_zeichenhypothese/tokenizer_sonde.py \
 
 ---
 
-## 6. Grenzen dieser Mappe
+## 7. Grenzen dieser Mappe
 
 - Alles hier ist Text- und Tokenizer-Statistik. Es wird **keine** Aussage darüber
   getroffen, was Pythia in den mittleren Schichten tut; dafür braucht es einen
