@@ -367,6 +367,50 @@ ist ein verwertbares Ergebnis, kein Scheitern — und es spricht dafür, den nä
 Anlauf nicht an einer feineren Zerlegung desselben Ortes zu versuchen, sondern an
 mehr Orten.
 
+### Was die Vorgeschichte immerhin belegt
+
+Ein Punkt spricht klar für die Messkette: der Reproduktionstest des Laufs
+`20260906_103133_0e2bc9` vergleicht 144 Kennzahlen zwischen zwei Durchgängen und
+findet einen maximalen absoluten Unterschied von **exakt 0.0**. Der Verdacht aus der
+frühen Phase, in den mittleren Schichten stecke ein hardwareabhängiger Effekt, ist
+für diese Messkette damit erledigt: sie liefert bitgleiche Ergebnisse. Was immer die
+Läufe zeigen oder nicht zeigen, es ist kein Rauschen der Ausführung.
+
+Derselbe Lauf zeigt aber auch, wie hartnäckig das Muster ist. Drei voneinander
+unabhängige Zerlegungsversuche am selben Ort — Alphabet-Achsen, bitweise Primitive,
+Nachfolgerelationen — landen alle im selben Bereich:
+
+| Zerlegung | erklärter Anteil | Residuum |
+|---|---|---|
+| bitweise Primitive, k = 4 | 1.3 – 3.3 % | 98.4 – 99.4 % |
+| Nachfolger, nicht-bitweise | 0.13 – 2.3 % | 97.9 – 98.7 % |
+
+Die einzige positive Aussage des Laufs — ein „source-state-conditioned low-rank
+operator" — beruht auf einer Anpassung mit **Rang 32** in einem Raum der Breite
+2 048, die den Kosinus um 0.21 bis 0.31 und den normierten Fehler um 6 bis 9 Prozent
+verbessert. Ob das mehr ist, als eine Rang-32-Anpassung an Rauschen erreicht, sagt
+der Bericht nicht; ein Vergleich gegen zufällige Operatoren gleichen Ranges wäre die
+naheliegende Gegenprobe. Der Lauf selbst schreibt an anderer Stelle die passende
+Warnung hin: „rank-128/512 success is not evidence that the true name mechanism is
+low-rank".
+
+### Zwei Architekturdetails, die man dabei kennen muss
+
+Aus `config.json` von `EleutherAI/pythia-1.4b`, nachgeladen und in
+`daten/PYTHIA14B_ARCHITEKTUR.csv` abgelegt:
+
+- **Vierundzwanzig Blöcke, Breite 2 048, sechzehn Köpfe à 128.** Die Rotation wirkt
+  nur auf einem Viertel der Kopfdimensionen, und Attention und MLP hängen parallel am
+  Residuum (`use_parallel_residual: true`) — was der `ological`-Lauf korrekt prüft.
+  Block 23 ist damit der letzte; eine Einschränkung auf „B19 und B23" trifft das
+  hintere Drittel des Netzes.
+- **Das Vokabular ist gepolstert.** Die Konfiguration nennt 50 304 Zeilen, der
+  Tokenizer kennt 50 277 Einträge, das reine Vokabular 50 254. Die letzten
+  **27 Embedding-Zeilen gehören zu keinem Token**. Wer über Token-IDs rechnet — und
+  eine der ausgewählten Primitiven heißt `id_xor_b14` — arbeitet auf einer Menge, die
+  am oberen Rand aus unbenutzten Zeilen besteht. Eine bitweise Operation auf IDs kann
+  dort hinzeigen, wo nie etwas trainiert wurde.
+
 ## 7. Der parallele Lauf am selben Textfenster
 
 Am selben 13. September lief ein zweiter Versuch, `ological_c677b4881415`, der nicht
