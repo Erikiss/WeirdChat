@@ -1,0 +1,7 @@
+checkpoint,layer,primitive_1,primitive_2,primitive_3,primitive_4,projection_energy,reconstruction_cosine,residual_rms_fraction
+98000,14,byte_xor_first_b4,ascii_succ_first,drop_last_byte,byte_shl1_last,0.0326561434761004,0.1807101089482828,0.9835364032520428
+98000,20,byte_shr1_last,drop_last_byte,ascii_succ_last,byte_rotr1_first,0.0140679291304627,0.1186083012712964,0.9929411215513060
+98000,23,id_xor_b14,byte_shr1_last,byte_rotl1_first,drop_last_byte,0.0298143954535038,0.1726684552936746,0.9849800021038784
+99000,14,byte_shl1_last,byte_rotr1_last,drop_last_byte,byte_shr1_first,0.0273207617134776,0.1652899322810600,0.9862450193965884
+99000,20,byte_rotl1_last,drop_last_byte,byte_shl1_last,prepend_space,0.0129305186560892,0.1137124384405201,0.9935137046573320
+99000,23,byte_shr1_last,drop_last_byte,byte_shl1_first,prepend_space,0.0207242252194578,0.1439591095396805,0.9895836370810622

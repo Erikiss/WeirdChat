@@ -324,7 +324,51 @@ Perzentil. Das kann stimmen, wenn die beiden Bezugsverteilungen entsprechend
 auseinanderliegen. Wahrscheinlicher ist ein versehentlich übernommener Wert. Das ist
 kein Befund, sondern ein Punkt zum Nachsehen im Auswertungscode.
 
-## 6. Der parallele Lauf am selben Textfenster
+## 6. Warum die Vorgängerlinie stecken blieb
+
+Zwischen dem McQuarrie-Phänomen und dem WASD-Umschwung liegen zwei Läufe, die
+denselben Ort mit Zeichen-Hypothesen angingen. Beide sind negativ ausgefallen, und
+ihre Zahlen erklären, warum die Linie nicht weiterkam.
+
+**Phonologie, Alphabet, QR-Code (05.09.).** Der Lauf fragt, ob der Übergang `Qu`→`ar`
+eine Aussprache-Umkodierung trägt: klingt es wie *kwor* oder wie *qar*? Von zehn
+Hypothesenflaggen ist **eine** wahr. Die gemessenen Verschiebungen liegen zwischen
+0.0003 und 0.038 — Größenordnungen unterhalb dessen, was die Grundlinienmarge von
+−0.70 bis −0.75 ausmacht. Auffällig nebenbei: die Qualität aller sieben
+Konzeptachsen wird mit exakt 1.0 angegeben, für *Phonologie* ebenso wie für
+*Froschquaken*. Eine Gütezahl, die für jede Achse denselben Bestwert liefert,
+unterscheidet nichts.
+
+**Bitweise Tokenizer-Primitive (06.09.).** Der Lauf sucht eine Zerlegung der
+Übergänge in Byteoperationen — Verschiebungen, Rotationen, ASCII-Nachfolger — und
+wählt je Checkpoint und Schicht die besten vier. Das Ergebnis, in seinen eigenen
+Zahlen:
+
+| | Schicht 14 | Schicht 20 | Schicht 23 |
+|---|---|---|---|
+| Projektionsenergie 98k | 3.27 % | 1.41 % | 2.98 % |
+| Projektionsenergie 99k | 2.73 % | 1.29 % | 2.07 % |
+| Residuum (Anteil) | 98.4–98.6 % | 99.3–99.4 % | 98.5–99.0 % |
+| Auswahl stabil 98k→99k | 2 von 4 | **1 von 4** | 2 von 4 |
+
+Zwei Dinge stehen damit fest. Erstens erklären die Primitive fast nichts: über 98
+Prozent bleiben Residuum. Zweitens hält die Auswahl zwischen zwei **benachbarten**
+Checkpoints nicht — von zwölf Plätzen überleben fünf, und einer davon,
+`drop_last_byte`, steht in allen sechs Auswahlen und unterscheidet deshalb nichts.
+Zehn der vierzehn überhaupt gewählten Primitive kommen genau einmal vor.
+
+Das ist das Muster einer Auswahl, die Rauschen anpasst. Der Lauf zieht daraus selbst
+das richtige Fazit (`strong_bitwise_reduction_supported = false`) — und ausgerechnet
+Schicht 20, um die sich die frühere Linie drehte, ist an beiden Checkpoints die
+schwächste der drei.
+
+Die Linie kam also nicht deshalb nicht weiter, weil die Messungen zu grob waren,
+sondern weil die gesuchte Struktur zwischen zwei Checkpoints nicht wiederkehrt. Das
+ist ein verwertbares Ergebnis, kein Scheitern — und es spricht dafür, den nächsten
+Anlauf nicht an einer feineren Zerlegung desselben Ortes zu versuchen, sondern an
+mehr Orten.
+
+## 7. Der parallele Lauf am selben Textfenster
 
 Am selben 13. September lief ein zweiter Versuch, `ological_c677b4881415`, der nicht
 Buchstaben zählt, sondern eingreift. Er verdient eine eigene Notiz, weil er
@@ -396,7 +440,7 @@ ganze Fenster verteilt. Keine davon hat bisher einen Effekt gezeigt, der außerh
 des Endtokens liegt. Das ist kein Grund aufzuhören — aber es ist ein Grund, den
 nächsten Versuch an mehr als einem Text zu führen.
 
-## 7. Was in dieser Mappe liegt
+## 8. Was in dieser Mappe liegt
 
 | Datei | Inhalt |
 |---|---|
@@ -413,6 +457,7 @@ nächsten Versuch an mehr als einem Text zu führen.
 | `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
 | `tests/test_pile_nullmodell.py` | Rechenlogik plus Konsistenz gegen den gespeicherten Korpuslauf |
 | `tests/test_ological_struktur.py` | die Tokenstruktur der Störungen im parallelen Lauf |
+| `tests/test_primitivauswahl.py` | warum die Vorgängerlinie stecken blieb, an ihren eigenen Zahlen |
 
 Nachrechnen:
 
@@ -428,7 +473,7 @@ python examples/05_wasd_zeichenhypothese/tokenizer_sonde.py \
 
 ---
 
-## 8. Grenzen dieser Mappe
+## 9. Grenzen dieser Mappe
 
 - Alles hier ist Text- und Tokenizer-Statistik. Es wird **keine** Aussage darüber
   getroffen, was Pythia in den mittleren Schichten tut; dafür braucht es einen
