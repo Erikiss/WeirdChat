@@ -294,7 +294,79 @@ Fünf-Token-Varianten bei 98k und 99k zwar besser ab, aber nicht signifikant
 wenig, um den Faktor auszuschließen oder nachzuweisen. Er bleibt unkontrolliert; ein
 Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
 
-## 6. Was in dieser Mappe liegt
+## 6. Der parallele Lauf am selben Textfenster
+
+Am selben 13. September lief ein zweiter Versuch, `ological_c677b4881415`, der nicht
+Buchstaben zählt, sondern eingreift. Er verdient eine eigene Notiz, weil er
+methodisch deutlich weiter ist als die WASD-Läufe — und weil seine eigenen Zahlen
+etwas anderes sagen als seine Überschrift.
+
+**Was er macht.** Er stört das Wort *Meteorological* im selben Textfenster (Token 165
+bis 168) in acht Varianten: Aufspaltung, Null statt o, Eins statt o, Großbuchstabe,
+Tippfehler, zwei Vertauschungen. Dann verpflanzt er Aktivierungen zwischen den
+Varianten — Schichten 13, 14 und 15, vier Bauteile je Block, zwei Anker, beide
+Richtungen: 672 Transfers, Batchgröße eins, FP32.
+
+**Was gut ist.** Die Kontrollen sitzen. Der Selbstpatch, bei dem eine Aktivierung
+durch sich selbst ersetzt wird, hat einen maximalen Logit-Fehler von exakt `0.0`.
+Die Rekonstruktion des parallelen Residualpfads von Pythia (`resid_out = resid_in +
+attn + mlp`) stimmt ebenfalls auf `0.0`. Und `interpretation.txt` schreibt die
+Grenzen selbst hin, einschließlich des Satzes, ein Transfer identifiziere „causal
+involvement at a selected anchor, not the origin of a logical concept or a full
+circuit".
+
+**Was die Zahlen sagen.** Der eigentliche mechanistische Anspruch hängt am Anker
+`department` — dort sollte sich zeigen, dass die Störung über das Wort hinaus wirkt.
+Genau dort passiert fast nichts:
+
+| Anker | größter absoluter Effekt | nativ |
+|---|---|---|
+| `readout` (letztes Token) | 0.1203 nats | 0.1203 |
+| `department` | 0.0274 nats | 0.0105 |
+
+Der Effekt sitzt also am Endtoken selbst — dessen Residuum den Readout ohnehin
+direkt speist. Das ist beinahe eine Tautologie: wer das letzte Token überschreibt,
+ändert die nächste Vorhersage. Dazu kommt, dass die Schichten 13, 14 und 15
+praktisch gleich reagieren; eine Sonderrolle von Schicht 14, wie sie die frühere
+McQuarrie-Linie vermutete, ist in diesen Zahlen nicht zu sehen.
+
+**Wo es wackelt.** 144 der 672 Zeilen sind als `baseline_gap_too_small` markiert, der
+normalisierte Transfer geht in einzelnen Ziffernpaaren bis 1.47 — mehr als
+vollständige Übertragung, ein Zeichen dafür, dass der Nenner zu klein ist. Ein
+Nullmodell jenseits des trivialen Selbstpatches fehlt, ebenso eine Korrektur über die
+672 Vergleiche. Und die Themenmarker sind, wie der Lauf selbst vermerkt, rein
+lexikalisch: die Marge zwischen Logik- und Wettermarkern ist durchweg stark negativ,
+weil der Text vom Wetter handelt.
+
+**Was die Grundlinien verraten.** Die Verschlechterung der Vorhersage verteilt sich
+so: Aufspalten kostet 0.168 nats, die Null statt des o weitere 0.121, und die
+Identität der Ziffer — 0 gegen 1 — nur etwa 0.04. Der größte Teil des Effekts kommt
+also von der veränderten Tokenisierung, nicht vom eingesetzten Zeichen.
+
+Das passt zur Tokenstruktur, die in `daten/OLOGICAL_TOKENISIERUNG.csv` nachgerechnet
+ist: `original_split`, `zero`, `one` und `capital_o` bilden eine saubere Familie
+`ĠMet | e | ? | rological`, die sich nur an der dritten Position unterscheidet — für
+diese vier gilt die Behauptung des Laufs, es unterscheide sich genau ein Token. Der
+Tippfehler `x_typo` fällt heraus (drei Tokens statt vier), und die Vertauschungen
+stellen das Token `ological` wieder her, das in der Nullvariante gar nicht vorkommt:
+zwischen `zero` und `zero_transpose` stimmt von vier Positionen nur die erste.
+
+**Das dritte Werkzeug.** Das Notebook `State60482_Pythia_Fragilitaet.ipynb` vom selben
+Tag ist ein anderer Versuch: kein Patching, sondern normierte Zufallsstörungen auf
+Q, K und V vor der Rotationskodierung, gegen neun textgleiche Varianten mit
+verschobenen Tokengrenzen. Zeichenketten aus dem Gaming-Bereich kommen dort nicht
+vor. Auch hier sind die Interaktionen winzig — der größte mittlere Absolutwert liegt
+bei 0.00199 nats, alle Ausfallraten bei null, nichts überschreitet die
+Neutralitätsschwellen. Mit vier Richtungsziehungen meldet der Lauf sein Vertrauensband
+selbst als `too_few_paired_direction_seeds`.
+
+**Fazit für diese Linie.** Drei Arbeitslinien messen an einem einzigen Dokument von
+207 Token: McQuarrie an 124 bis 127, *Meteorological* an 165 bis 168, WASD über das
+ganze Fenster verteilt. Keine davon hat bisher einen Effekt gezeigt, der außerhalb
+des Endtokens liegt. Das ist kein Grund aufzuhören — aber es ist ein Grund, den
+nächsten Versuch an mehr als einem Text zu führen.
+
+## 7. Was in dieser Mappe liegt
 
 | Datei | Inhalt |
 |---|---|
@@ -309,6 +381,7 @@ Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
 | `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der früheren McQuarrie-Linie |
 | `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
 | `tests/test_pile_nullmodell.py` | Rechenlogik plus Konsistenz gegen den gespeicherten Korpuslauf |
+| `tests/test_ological_struktur.py` | die Tokenstruktur der Störungen im parallelen Lauf |
 
 Nachrechnen:
 
@@ -324,7 +397,7 @@ python examples/05_wasd_zeichenhypothese/tokenizer_sonde.py \
 
 ---
 
-## 7. Grenzen dieser Mappe
+## 8. Grenzen dieser Mappe
 
 - Alles hier ist Text- und Tokenizer-Statistik. Es wird **keine** Aussage darüber
   getroffen, was Pythia in den mittleren Schichten tut; dafür braucht es einen
