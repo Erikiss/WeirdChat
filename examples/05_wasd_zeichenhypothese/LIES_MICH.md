@@ -226,24 +226,33 @@ betrifft. Er steht in der Methodenbeschreibung des Verfahrens, das dieses Projek
 benutzt.
 
 **Der Schätzer liefert nicht die Suszeptibilität, sondern ein Vielfaches davon.**
-Die Anleitung zur Skalierung der Suszeptibilitäten schreibt ausdrücklich, der
-Zwei-Ketten-Schätzer ziele auf die *renormalisierte* Größe `Z_full/Z_C · χ` — „not
-for the population susceptibility itself". Der unbekannte Vorfaktor hängt von der
-Komponente ab, nicht vom gemessenen Token, und wird erst durch die spaltenweise
-Standardisierung absorbiert.
+Die Methodenseite zur Skalierung der Suszeptibilitäten schreibt es wörtlich — an der
+Quelle nachgeprüft:
 
-Daraus folgt unmittelbar: **Ein Vergleich von Rohwerten zwischen Schichten ist
-nicht interpretierbar.** Ein Satz wie „Schicht 14 und 20 reagieren stärker" setzt
-genau das voraus, was der Schätzer nicht liefert. Erst nach der Standardisierung
-sind Komponenten vergleichbar, und dann ist die Aussage eine über das *Profil*, nicht
-über die Höhe.
+> „…is actually an estimator for the renormalized susceptibility
+> `Z_full/Z_C · χ^C_xy` **not for the population susceptibility itself**. This
+> `C`-dependent (but `xy`-independent) prefactor is absorbed by the column z-scoring
+> step…"
+
+Daraus folgt unmittelbar: **Ein Vergleich von Rohwerten zwischen Komponenten — also
+zwischen Schichten oder Köpfen — ist nicht interpretierbar.** Ein Satz wie „Schicht
+14 und 20 reagieren stärker" setzt genau das voraus, was der Schätzer nicht liefert.
+Erst nach der spaltenweisen Standardisierung sind Komponenten vergleichbar, und dann
+ist die Aussage eine über das *Profil*, nicht über die Höhe.
+
+Die Einschränkung gilt genau in eine Richtung: Der Vorfaktor ist ausdrücklich
+*`xy`-unabhängig*. **Innerhalb einer Komponente** dürfen Tokens also sehr wohl auf
+Rohwerten verglichen werden — dort kürzt sich der unbekannte Faktor heraus. Wer die
+Frage stellt „welches Token reagiert in Schicht 14 am stärksten", ist auf sicherem
+Boden; wer fragt „welche Schicht reagiert am stärksten", nicht.
 
 Zwei weitere Punkte derselben Art:
 
-- Die Zeilenzentrierung entfernt nach Beschreibung der Autoren „the uniform mode".
-  Eine Aussage der Form „X ist global suszeptibler" ist damit **per Konstruktion**
-  aus den standardisierten Daten entfernt — sie kann dort weder bestätigt noch
-  widerlegt werden.
+- Die Zeilenzentrierung „deletes exactly the **1** direction", also den uniformen
+  Modus. Eine Aussage der Form „X ist global suszeptibler" ist damit **per
+  Konstruktion** aus den standardisierten Daten entfernt — sie kann dort weder
+  bestätigt noch widerlegt werden. (Die neuere Fassung ersetzt diesen Schritt durch
+  PCA-Whitening, mit demselben Effekt auf die uniforme Richtung.)
 - Die Zahl der gefundenen Cluster hängt stark an der Auswertungskette, nicht am
   Modell; und die Autoren berichten selbst, dass schon eine **Gauß-Grundlinie ohne
   jeden Beitrag der Verlustlandschaft interpretierbare Cluster liefert**. Ein
