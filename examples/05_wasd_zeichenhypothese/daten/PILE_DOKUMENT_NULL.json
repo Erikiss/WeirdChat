@@ -3,7 +3,7 @@
   "n_dokumente": 2863,
   "n_zeichen": 20899761,
   "zielbuchstaben": "WASDQERF",
-  "erwartete_dichte_englisch": 0.41340000000000005,
+  "erwartete_dichte_englisch": 0.4134,
   "mittel": 0.40864963371525104,
   "standardabweichung": 0.02907504765509015,
   "median": 0.40894885280890314,
@@ -19,7 +19,12 @@
   "state60482_dichte": 0.3868194842406877,
   "state60482_z": -0.7508207633407461,
   "state60482_perzentil": 18.82640586797066,
-  "wasd_vorkommen": 22,
-  "wasd_dokumente": 1,
-  "wasd_je_million_zeichen": 1.0526436163552302
+  "wasd_vorkommen": 0,
+  "wasd_dokumente": 0,
+  "wasd_je_million_zeichen": 0.0,
+  "wasd_nach_schreibweise": {
+    "WASD": 0,
+    "wasd": 0,
+    "Wasd": 0
+  }
 }

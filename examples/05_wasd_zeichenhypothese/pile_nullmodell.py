@@ -13,7 +13,7 @@ Dinge aus:
 1. die Verteilung der Zielbuchstaben-Dichte ueber die Dokumente, und wo State 60482
    darin liegt;
 2. die **Basisrate der Zeichenfolge WASD** im Korpus - also wie oft das Tastenkuerzel
-   ueberhaupt vorkommt.
+   ueberhaupt vorkommt, getrennt nach Schreibweise und nur an Wortgrenzen.
 
 Ergebnis des gespeicherten Laufs (``daten/PILE_DOKUMENT_NULL.json``, 2 863
 Dokumente, 20 899 761 Zeichen):
@@ -24,9 +24,14 @@ Standardabweichung                            0.029075
 State 60482                                   0.386819
 z                                             -0.7508
 Perzentil                                     18.83
-WASD-Vorkommen                                22 in einem einzigen Dokument
-WASD je Million Zeichen                       1.053
+WASD als eigenstaendiges Wort                  0 (in keiner Schreibweise)
 ===========================================  ==============
+
+Zur zweiten Zeile eine Warnung in eigener Sache: eine erste Fassung dieses Skripts
+suchte ``wasd`` als **Teilkette** und meldete 22 Treffer. Alle stammten aus dem
+englischen Ortsnamen *Wasdale* und der Domain *wasdaleweb.com*, beide aus einem
+einzigen Reisefuehrer-Dokument. Kein einziger war das Tastenkuerzel. Seither zaehlt
+``zaehle_varianten`` nur an Wortgrenzen und schluesselt nach Schreibweise auf.
 
 Aufruf::
 
@@ -37,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import string
 import time
@@ -86,6 +92,7 @@ class Korpusbefund:
     wasd_vorkommen: int
     wasd_dokumente: int
     wasd_je_million_zeichen: float
+    wasd_nach_schreibweise: dict[str, int]
 
 
 def _hole_zeilen(offset: int, laenge: int, versuche: int = 4) -> list[str]:
@@ -144,12 +151,33 @@ def dichte(text: str, zielbuchstaben: str) -> float | None:
 
 
 def zaehle_zeichenfolge(text: str, folge: str) -> int:
-    """Zaehlt die Zeichenfolge in den drei ueblichen Schreibweisen."""
-    return (
-        text.count(folge.upper())
-        + text.count(folge.lower())
-        + text.count(folge.capitalize())
+    """Zaehlt die Zeichenfolge als **Wort**, in den drei ueblichen Schreibweisen.
+
+    Die Wortgrenze ist hier keine Feinheit, sondern der Unterschied zwischen Messen
+    und Danebenmessen. Eine reine Teilkettensuche nach ``wasd`` findet in The Pile
+    vor allem den englischen Ortsnamen *Wasdale* (Wasdale Head im Lake District)
+    und die Domain *wasdaleweb.com* - und keinen einzigen Beleg fuer das
+    Tastenkuerzel. Ohne Wortgrenze haette diese Auswertung 22 Treffer gemeldet, von
+    denen keiner der gesuchte war.
+    """
+    return sum(zaehle_varianten(text, folge).values())
+
+
+def zaehle_varianten(text: str, folge: str) -> dict[str, int]:
+    """Wie ``zaehle_zeichenfolge``, aber nach Schreibweise aufgeschluesselt."""
+    muster = "|".join(
+        re.escape(schreibweise)
+        for schreibweise in (folge.upper(), folge.lower(), folge.capitalize())
     )
+    gefunden = re.findall(rf"(?<![A-Za-z0-9])(?:{muster})(?![A-Za-z0-9])", text)
+    zaehler = {
+        folge.upper(): 0,
+        folge.lower(): 0,
+        folge.capitalize(): 0,
+    }
+    for treffer in gefunden:
+        zaehler[treffer] = zaehler.get(treffer, 0) + 1
+    return zaehler
 
 
 def werte_aus(
@@ -158,6 +186,7 @@ def werte_aus(
     wasd_vorkommen: int,
     wasd_dokumente: int,
     zielbuchstaben: str,
+    wasd_nach_schreibweise: Mapping[str, int] | None = None,
 ) -> Korpusbefund:
     if len(dichten) < 30:
         raise ValueError(f"zu wenige Dokumente fuer eine Verteilung: {len(dichten)}")
@@ -189,6 +218,7 @@ def werte_aus(
         wasd_vorkommen=wasd_vorkommen,
         wasd_dokumente=wasd_dokumente,
         wasd_je_million_zeichen=1e6 * wasd_vorkommen / n_zeichen if n_zeichen else 0.0,
+        wasd_nach_schreibweise=dict(wasd_nach_schreibweise or {}),
     )
 
 
@@ -208,6 +238,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     n_zeichen = 0
     treffer_gesamt = 0
     treffer_dokumente = 0
+    nach_schreibweise: dict[str, int] = {}
     for offset in range(0, ziel, 100):
         texte = _hole_zeilen(offset, 100)
         if not texte:
@@ -219,13 +250,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 continue
             dichten.append(wert)
             n_zeichen += len(text)
-            treffer = zaehle_zeichenfolge(text, zeichenfolge)
+            varianten = zaehle_varianten(text, zeichenfolge)
+            treffer = sum(varianten.values())
             treffer_gesamt += treffer
+            for schreibweise, anzahl in varianten.items():
+                nach_schreibweise[schreibweise] = nach_schreibweise.get(schreibweise, 0) + anzahl
             if treffer:
                 treffer_dokumente += 1
         print(f"  Offset {offset}: {len(dichten)} Dokumente")
 
-    befund = werte_aus(dichten, n_zeichen, treffer_gesamt, treffer_dokumente, zielbuchstaben)
+    befund = werte_aus(
+        dichten,
+        n_zeichen,
+        treffer_gesamt,
+        treffer_dokumente,
+        zielbuchstaben,
+        nach_schreibweise,
+    )
     print(json.dumps(asdict(befund), indent=2, ensure_ascii=False))
 
     if args.speichern:

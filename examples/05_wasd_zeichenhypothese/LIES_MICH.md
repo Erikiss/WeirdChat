@@ -142,11 +142,18 @@ Sondertoken) enthält:
 Kein einziger Vokabeleintrag enthält `wasd` als Teilkette, in keiner Schreibweise.
 Da BPE-Merges nach Häufigkeit entstehen, ist das ein Hinweis auf die Basisrate — und
 die lässt sich direkt nachzählen. In derselben Stichprobe von 2 863 Pile-Dokumenten
-kommt die Zeichenfolge `WASD` **22 Mal vor, und zwar sämtlich in einem einzigen
-Dokument**: 1.05 Vorkommen je Million Zeichen, Dokumenthäufigkeit 0.03 Prozent. Eine
-Zeichenfolge dieser Seltenheit bekommt im BPE-Verfahren keinen eigenen Merge, und
-sie kann im Textfenster State 60482 auch nichts auslösen — dort steht sie kein
-einziges Mal.
+(20 899 761 Zeichen) kommt `WASD` als eigenständiges Wort **kein einziges Mal** vor,
+in keiner Schreibweise. Eine Zeichenfolge, die im Trainingskorpus gar nicht
+auftaucht, bekommt keinen eigenen Merge — und kann im Textfenster State 60482 auch
+nichts auslösen, wo sie ebenfalls nicht steht.
+
+> **Warnung in eigener Sache.** Die erste Fassung dieser Zählung suchte `wasd` als
+> Teilkette und meldete 22 Treffer. Alle stammten aus dem englischen Ortsnamen
+> *Wasdale* und der Domain *wasdaleweb.com*, beide aus einem einzigen
+> Reiseführer-Dokument; keiner war das Tastenkürzel. Der Fehler ist derselbe, den
+> diese Mappe an den Läufen kritisiert: eine Zahl, die plausibel aussieht, weil
+> niemand nachgesehen hat, was sie zählt. `zaehle_varianten` zählt jetzt nur an
+> Wortgrenzen und schlüsselt nach Schreibweise auf, und ein Test hält den Fall fest.
 
 Umgekehrt bestehen **931 Vokabeleinträge (1.85 Prozent)** ausschließlich aus
 WASDQERF-Buchstaben — darunter die frühesten und häufigsten Merges des Englischen:

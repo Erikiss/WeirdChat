@@ -22,6 +22,7 @@ from pile_nullmodell import (  # noqa: E402
     STATE60482_DICHTE,
     dichte,
     werte_aus,
+    zaehle_varianten,
     zaehle_zeichenfolge,
 )
 
@@ -55,6 +56,19 @@ def test_dichte_trifft_einen_gepflanzten_anteil():
 def test_zeichenfolge_wird_in_drei_schreibweisen_gezaehlt():
     text = "WASD wasd Wasd WaSd"
     assert zaehle_zeichenfolge(text, "WASD") == 3  # WaSd zaehlt nicht
+    assert zaehle_varianten(text, "WASD") == {"WASD": 1, "wasd": 1, "Wasd": 1}
+
+
+def test_teilketten_zaehlen_nicht_mit():
+    """Die Lehre aus dem eigenen Fehlalarm: *Wasdale* ist nicht das Tastenkuerzel.
+
+    Eine erste Fassung suchte ``wasd`` als Teilkette und meldete 22 Treffer im
+    Korpus - saemtlich aus dem Ortsnamen Wasdale und der Domain wasdaleweb.com.
+    """
+    text = "Wasdale Head and www.wasdaleweb.com and WASDQERF and WASD-only"
+    varianten = zaehle_varianten(text, "WASD")
+    assert varianten == {"WASD": 1, "wasd": 0, "Wasd": 0}
+    assert "Wasdale" in text  # der Ortsname steht da, zaehlt aber nicht mit
 
 
 def test_werte_aus_verlangt_genug_dokumente():
@@ -65,7 +79,7 @@ def test_werte_aus_verlangt_genug_dokumente():
 def test_werte_aus_setzt_state60482_korrekt_in_die_verteilung():
     """Gepflanzte Wahrheit: eine Verteilung, deren Mittel deutlich ueber dem Ziel liegt."""
     dichten = [0.50] * 50 + [0.45] * 50
-    befund = werte_aus(dichten, 1_000_000, 5, 2, "WASDQERF")
+    befund = werte_aus(dichten, 1_000_000, 5, 2, "WASDQERF", {"WASD": 5})
     assert befund.n_dokumente == 100
     assert befund.mittel == pytest.approx(0.475)
     assert befund.state60482_z < -2
@@ -120,16 +134,21 @@ def test_der_korpusmittelwert_liegt_nahe_der_englischen_erwartung():
     assert float(str(befund["erwartete_dichte_englisch"])) == pytest.approx(0.4134, abs=1e-4)
 
 
-def test_wasd_ist_im_korpus_ausgesprochen_selten():
-    """22 Vorkommen in 20.9 Millionen Zeichen, und alle in einem einzigen Dokument.
+def test_wasd_kommt_im_korpus_ueberhaupt_nicht_vor():
+    """Null Vorkommen als eigenstaendiges Wort in 20.9 Millionen Zeichen.
 
-    Das stuetzt den Tokenizer-Befund: eine Zeichenfolge dieser Seltenheit bekommt im
-    BPE-Verfahren keinen eigenen Merge.
+    Das stuetzt den Tokenizer-Befund: eine Zeichenfolge, die im Korpus gar nicht
+    auftaucht, bekommt im BPE-Verfahren keinen eigenen Merge - und kann im
+    Zielfenster auch nichts ausloesen.
     """
     befund = _befund()
-    assert befund["wasd_vorkommen"] == 22
-    assert befund["wasd_dokumente"] == 1
-    assert float(str(befund["wasd_je_million_zeichen"])) < 2.0
+    assert befund["wasd_vorkommen"] == 0
+    assert befund["wasd_dokumente"] == 0
+    assert befund["wasd_je_million_zeichen"] == 0.0
+    nach_schreibweise = befund["wasd_nach_schreibweise"]
+    assert isinstance(nach_schreibweise, dict)
+    assert set(cast("dict[str, int]", nach_schreibweise)) == {"WASD", "wasd", "Wasd"}
+    assert all(anzahl == 0 for anzahl in cast("dict[str, int]", nach_schreibweise).values())
 
 
 def test_dichtetabelle_passt_zur_zusammenfassung():
