@@ -7,8 +7,10 @@ mittleren Schichten Effekte wie Sprachwechsel oder Fehlerkorrektur aus?
 Die Antwort auf dem heutigen Stand der Messungen ist **nein**, und zwar deutlicher,
 als die Läufe selbst berichten. Was hier steht, ist kein Gegenargument gegen die
 Forschungslinie, sondern ihre Bilanz: drei Läufe vom 13. September 2026, exakt
-nachgerechnet, plus zwei Befunde, die in den Läufen nicht enthalten sind und die
-Richtung des Ergebnisses umdrehen.
+nachgerechnet, plus drei Befunde, die in den Läufen nicht enthalten sind und die
+Richtung des Ergebnisses umdrehen — ein frequenzangepasstes Nullmodell, ein
+Dokument-Nullmodell aus dem Trainingskorpus selbst, und die Frage, ob die
+Zeichenfolge das Netz überhaupt als Einheit erreicht.
 
 Der Gegenstand ist das Textfenster **State 60482** — 893 Zeichen, 698 Buchstaben,
 207 Token im GPT-NeoX-Tokenizer, ein Nachrichtenschnipsel aus dem Pile über
@@ -52,7 +54,7 @@ Die beiden Dichteläufe sind bis auf den Zeitstempel identisch.
 
 ---
 
-## 2. Zwei Befunde, die in den Läufen fehlen
+## 2. Drei Befunde, die in den Läufen fehlen
 
 ### 2.1 Das Nullmodell ist verzerrt — und zwar genau in die Richtung des erhofften Ergebnisses
 
@@ -65,7 +67,7 @@ Englischen. Die erwartete Dichte dieser Achtermenge in gewöhnlichem englischem 
 beträgt **0.4134**; eine zufällig gezogene Achtermenge kommt im Mittel auf 0.3077.
 Ein positives z ist damit die Voreinstellung, nicht der Befund.
 
-Zwei Gegenproben, beide in `tests/` festgehalten:
+Drei Gegenproben, alle in `tests/` festgehalten:
 
 **Erstens, über die Geschwistertexte.** Dieselbe Kennzahl, berechnet für alle 19
 Fenster desselben Laufs:
@@ -103,6 +105,25 @@ Die Buchstaben einzeln betrachtet zerfällt die Gruppe ohnehin: W, S und D liege
 Großschreibung — kommt im Zieltext **halb so oft** vor wie im Gruppenmittel
 (Verhältnis 0.5088).
 
+**Drittens, gegen das Trainingskorpus selbst.** Die beiden Nullmodelle der Läufe
+vergleichen mit achtzehn Geschwisterfenstern und mit Buchstabenmengen. Die
+naheliegendste Bezugsgröße fehlt: gewöhnliche Dokumente aus dem Korpus, auf dem
+Pythia trainiert wurde. `pile_nullmodell.py` holt sie nach — 2 863 Dokumente aus
+The Pile, 20 899 761 Zeichen:
+
+| Kennzahl | Wert |
+|---|---|
+| mittlere WASDQERF-Dichte über Dokumente | 0.408650 |
+| Standardabweichung | 0.029075 |
+| Median | 0.408949 |
+| State 60482 | 0.386819 |
+| **z** | **−0.7508** |
+| **Perzentil** | **18.83** |
+
+Gegen das echte Trainingskorpus liegt das Zielfenster im unteren Fünftel. Der
+Korpusmittelwert 0.4087 bestätigt nebenbei die Standardtabelle (0.4134) als
+brauchbare Näherung — die Wahl der Häufigkeitsquelle ändert am Ergebnis nichts.
+
 ### 2.2 Die Zeichenfolge erreicht das Netz nicht als Einheit
 
 Vor jedem GPU-Lauf lässt sich eine Vorfrage klären: **Wie kommt `WASD` überhaupt im
@@ -119,8 +140,13 @@ Sondertoken) enthält:
 ```
 
 Kein einziger Vokabeleintrag enthält `wasd` als Teilkette, in keiner Schreibweise.
-Da BPE-Merges nach Häufigkeit entstehen, ist das zugleich ein Hinweis auf die
-Basisrate: wäre `WASD` im Trainingskorpus häufig, gäbe es dafür ein Token.
+Da BPE-Merges nach Häufigkeit entstehen, ist das ein Hinweis auf die Basisrate — und
+die lässt sich direkt nachzählen. In derselben Stichprobe von 2 863 Pile-Dokumenten
+kommt die Zeichenfolge `WASD` **22 Mal vor, und zwar sämtlich in einem einzigen
+Dokument**: 1.05 Vorkommen je Million Zeichen, Dokumenthäufigkeit 0.03 Prozent. Eine
+Zeichenfolge dieser Seltenheit bekommt im BPE-Verfahren keinen eigenen Merge, und
+sie kann im Textfenster State 60482 auch nichts auslösen — dort steht sie kein
+einziges Mal.
 
 Umgekehrt bestehen **931 Vokabeleinträge (1.85 Prozent)** ausschließlich aus
 WASDQERF-Buchstaben — darunter die frühesten und häufigsten Merges des Englischen:
@@ -268,12 +294,14 @@ Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
 | `zeichensatz_statistik.py` | Buchstabendichte gegen drei Nullmodelle, inklusive des frequenzangepassten |
 | `tokenizer_sonde.py` | prüft vor einem GPU-Lauf, ob eine Zeichenfolge das Netz als Einheit erreicht |
 | `experiment_traeger.py` | der vorregistrierte Nachfolgeversuch: Design, Strukturprüfung, Entscheidungsregel |
+| `pile_nullmodell.py` | das Dokument-Nullmodell aus dem Trainingskorpus, plus die Basisrate von WASD |
 | `daten/` | die Originalausgaben der drei Läufe, damit die Nachrechnung nicht von Drive abhängt |
 | `tests/test_zeichensatz_statistik.py` | Kalibrierung gegen gepflanzte Wahrheiten: neutraler Text darf nicht ausschlagen, gepflanzte An- und Abreicherung muss gefunden werden |
 | `tests/test_nullmodell_verzerrung.py` | der Beleg für die Verzerrung, direkt an den Messdaten |
 | `tests/test_zyklus_und_periode.py` | was die Zyklus- und Positionsanalyse wirklich zeigt |
 | `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der früheren McQuarrie-Linie |
 | `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
+| `tests/test_pile_nullmodell.py` | Rechenlogik plus Konsistenz gegen den gespeicherten Korpuslauf |
 
 Nachrechnen:
 
