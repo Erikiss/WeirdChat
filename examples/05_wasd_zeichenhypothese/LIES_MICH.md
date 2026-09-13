@@ -247,6 +247,19 @@ python examples/05_wasd_zeichenhypothese/experiment_traeger.py \
 
 Er meldet 20 strukturgleiche Kontrollen, fünf verworfene und 176 Messpunkte.
 
+**Viertens: Unsicherheit an den Kennzahlen.** Das gilt über die WASD-Frage hinaus.
+Der Bericht der Timaeus-Spektroskopie (`1130_..._EVALUATION_REPORT.md`) nennt für
+Schritt 98 000 eine Paar-Kosinusähnlichkeit von 0.9198 und für Schritt 99 000 eine
+von 0.9665, daraus einen Zuwachs von +0.0467, und schließt auf eine
+„EventB-spezifische Suszeptibilitätssignatur, schon bei 98k vorhanden". Alle diese
+Zahlen sind Punktschätzer aus 48 Sequenzen, ohne Streuungsangabe und ohne
+Permutationsnull. Ob +0.0467 zwischen zwei benachbarten Checkpoints viel oder nichts
+ist, lässt sich daraus nicht entscheiden — und der ausgewiesene „pair-minus-control
+gap" von 1.7884 ist im Wesentlichen die Summe zweier Kosinuswerte mit
+entgegengesetztem Vorzeichen, also eine Größe, deren Skala ohne Nullverteilung keine
+Bedeutung hat. Ein Bootstrap über die 48 Sequenzen und eine Etikettenpermutation
+kosten wenige Minuten Rechenzeit und würden diese Berichte tragfähig machen.
+
 Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 
 - **Mehrfachvergleiche.** In den bisherigen Läufen werden 19 Fenster × 12 Kennzahlen
