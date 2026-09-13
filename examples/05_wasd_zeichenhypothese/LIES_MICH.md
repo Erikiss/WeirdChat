@@ -7,10 +7,9 @@ mittleren Schichten Effekte wie Sprachwechsel oder Fehlerkorrektur aus?
 Die Antwort auf dem heutigen Stand der Messungen ist **nein**, und zwar deutlicher,
 als die Läufe selbst berichten. Was hier steht, ist kein Gegenargument gegen die
 Forschungslinie, sondern ihre Bilanz: drei Läufe vom 13. September 2026, exakt
-nachgerechnet, plus drei Befunde, die in den Läufen nicht enthalten sind und die
-Richtung des Ergebnisses umdrehen — ein frequenzangepasstes Nullmodell, ein
-Dokument-Nullmodell aus dem Trainingskorpus selbst, und die Frage, ob die
-Zeichenfolge das Netz überhaupt als Einheit erreicht.
+nachgerechnet, plus zwei Nullmodelle, die in den Läufen fehlen und die Richtung des
+Ergebnisses umdrehen, und eine Vorfrage, die vor jedem GPU-Lauf zu klären gewesen
+wäre: ob die Zeichenfolge das Netz überhaupt als Einheit erreicht.
 
 Der Gegenstand ist das Textfenster **State 60482** — 893 Zeichen, 698 Buchstaben,
 207 Token im GPT-NeoX-Tokenizer, ein Nachrichtenschnipsel aus dem Pile über
@@ -54,7 +53,7 @@ Die beiden Dichteläufe sind bis auf den Zeitstempel identisch.
 
 ---
 
-## 2. Drei Befunde, die in den Läufen fehlen
+## 2. Was in den Läufen fehlt
 
 ### 2.1 Das Nullmodell ist verzerrt — und zwar genau in die Richtung des erhofften Ergebnisses
 
