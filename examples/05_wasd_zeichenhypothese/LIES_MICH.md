@@ -413,6 +413,18 @@ Auf dem untrainierten Probemodell fällt das Urteil erwartungsgemäß negativ au
 (Vorsprung −0.0415 nats bei Schwelle 0.5, längster Kausallauf 0). Das ist die
 Kalibrierungsprobe: die Regel spricht nicht auf Rauschen an.
 
+**Was der Probelauf nicht finden konnte.** Der erste echte GPU-Lauf lief durch und
+war trotzdem verloren: Das Notebook schrieb seine neun Ausgabedateien nach
+`./wasd_traeger_lauf` — in das Dateisystem der Colab-Laufzeit, nicht nach Drive. Die
+in Drive gespeicherte Notebook-Kopie enthielt keine Zellausgaben. Damit war von
+18 024 Vorwärtsläufen nichts erhalten.
+
+Ein Probelauf gegen ein kleines Modell prüft, ob die Rechnung stimmt. Er prüft nicht,
+ob das Ergebnis irgendwo landet, wo es den Prozess überlebt — dort lief er im selben
+Verzeichnis wie das Skript und fand alles vor. Das Notebook sichert deshalb jetzt in
+einem Schlussabschnitt nach Drive, mit Zeitstempel, damit ein Lauf den vorigen nicht
+überschreibt; außerhalb von Colab läuft der Abschnitt wirkungslos durch.
+
 ---
 
 ## 6. Rückblick: ein unkontrollierter Faktor in der McQuarrie-Linie

@@ -253,3 +253,29 @@ def test_der_rechenaufwand_des_laufs_bleibt_der_dokumentierte(konfig: dict[str, 
     assert selbstpatch == 2880
     assert transferzeilen == 2880
     assert grundlinien + residualsonde + 2 * selbstpatch + 4 * transferzeilen == 18024
+
+
+def test_der_lauf_sichert_seine_ergebnisse_nach_drive():
+    """Das Dateisystem der Colab-Laufzeit ist fluechtig.
+
+    Im ersten Lauf ging genau das schief: die neun Ausgabedateien lagen unter
+    ``./wasd_traeger_lauf`` in der Laufzeit, das Notebook in Drive hatte keine
+    gespeicherten Ausgaben, und damit war von 18 024 Vorwaertslaeufen nichts
+    erhalten. Ein Lauf, dessen Zahlen die Laufzeit nicht ueberleben, ist kein Lauf.
+    """
+    text = _gesamttext()
+    assert "google.colab" in text
+    assert "drive.mount" in text
+    assert "copytree" in text
+
+
+def test_das_sichern_scheitert_nicht_ausserhalb_von_colab():
+    """Sonst braeche das Notebook am Ende ab, wo es nichts mehr zu retten gibt."""
+    text = _gesamttext()
+    assert "except ImportError" in text
+
+
+def test_die_ausgabe_liegt_unter_einem_eigenen_pfad(konfig: dict[str, Any]):
+    """Ein Lauf darf den vorigen nicht ueberschreiben - der Zeitstempel trennt sie."""
+    assert konfig["AUSGABE"].startswith("./")
+    assert "strftime" in _gesamttext()
