@@ -1,0 +1,99 @@
+{
+  "frage": "Laesst sich die deutsche Uebersetzung von State 60482 mit dem vorhandenen GPT-NeoX-Vokabular zeichengenau nachbilden?",
+  "antwort": "Ja, exakt - decode(encode(x)) == x fuer beide Texte. Byte-Level-BPE bildet jede Bytefolge ab. Die Frage ist nicht ob, sondern zu welchem Preis.",
+  "englisch": {
+    "zeichen": 893,
+    "bytes": 893,
+    "tokens": 207,
+    "woerter": 154,
+    "zeichen_je_token": 4.314009661835748,
+    "rundlauf_exakt": true
+  },
+  "deutsch": {
+    "zeichen": 1018,
+    "bytes": 1031,
+    "tokens": 324,
+    "woerter": 157,
+    "zeichen_je_token": 3.1419753086419755,
+    "rundlauf_exakt": true
+  },
+  "tokenmehrbedarf_faktor": 1.565217391304348,
+  "mehrbedarf_je_zeichen_faktor": 1.3730246860852482,
+  "nicht_ascii_zeichen": {
+    "ä": 7,
+    "ü": 4,
+    "ö": 2
+  },
+  "byte_rueckfall": false,
+  "bemerkung_umlaute": "Kein Zeichen faellt auf rohe Bytes zurueck. Die Umlaute stecken in zusammengesetzten Vokabeleintraegen (ĠlÃ¤, stÃ¤, ĠnÃ¤ ...); ' für' und ' über' sind sogar EIGENE Einzeltoken. Der Pile enthaelt genug Deutsch.",
+  "loci": {
+    "mcquarrie_en": [
+      124,
+      [
+        "ĠMc",
+        "Qu",
+        "ar",
+        "rie"
+      ],
+      [
+        3044,
+        3864,
+        274,
+        6595
+      ]
+    ],
+    "mcquarrie_de": [
+      194,
+      [
+        "ĠMc",
+        "Qu",
+        "ar",
+        "rie"
+      ],
+      [
+        3044,
+        3864,
+        274,
+        6595
+      ]
+    ],
+    "meteorolog_en": [
+      165,
+      [
+        "ĠMet",
+        "eor",
+        "ological"
+      ],
+      [
+        6365,
+        22683,
+        1975
+      ]
+    ],
+    "meteorolog_de": [
+      256,
+      [
+        "ĠMet",
+        "eor",
+        "olog",
+        "ische"
+      ],
+      [
+        6365,
+        22683,
+        862,
+        15488
+      ]
+    ]
+  },
+  "letztes_token": {
+    "en": [
+      "Ġkm",
+      10771
+    ],
+    "de": [
+      "ten",
+      1866
+    ]
+  }
+}
