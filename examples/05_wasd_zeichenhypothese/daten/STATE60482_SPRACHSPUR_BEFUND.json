@@ -164,5 +164,34 @@
     },
     "_urteil": "Kein Block ist im Leerlauf. Selbst die Bloecke NACH der scheinbaren Entscheidung kippen ein Fuenftel aller Top-1-Token. Die Vorstellung 'entschieden, danach beschleunigt durch' ist damit direkt widerlegt - nicht nur begrifflich, sondern gemessen.",
     "_nebenbefund": "Die KL-Kosten sind winzig (0.08 bis 0.13 nats) waehrend 10 bis 28 Prozent der Top-1 kippen. Diese Bloecke verschieben die Verteilung kaum, aber oft ueber die argmax-Grenze: Feinarbeit an knappen Entscheidungen. Deutsch ist an JEDEM Block staerker betroffen als Englisch."
+  },
+  "wiederholungstest_58938": {
+    "_frage": "Folgt ein Effekt der Position oder den Token? MVarrieur steht viermal, gleiche Tokenfolge.",
+    "positionen_rie": [
+      33,
+      136,
+      150,
+      211
+    ],
+    "ueberraschung_rie": [
+      8.6799,
+      0.0059,
+      0.0001,
+      0.0006
+    ],
+    "tiefe_nach_rie": [
+      8,
+      15,
+      16,
+      16
+    ],
+    "L50_nach_rie": [
+      8,
+      13,
+      13,
+      11
+    ],
+    "_befund": "Die vier unterscheiden sich - aber nach REIHENFOLGE, nicht nach Position. Das erste Vorkommen ist teuer (8.68 nats), die drei Wiederholungen sind praktisch frei (0.006, 0.000, 0.001). Positionen 136, 150 und 211 sind ununterscheidbar. Das ist Induktion - Kopieren aus dem Kontext -, kein Positionsattraktor.",
+    "_kontrast_mcquarrie": "In 60482 kostet 'rie' in McQuarrie beim EINZIGEN Vorkommen 0.005 nats. Der Name ist aus dem Training bekannt (Christopher McQuarrie): parametrisches Gedaechtnis. MVarrieur ist neu und wird im Kontext gelernt. Derselbe Token, zwei voellig verschiedene Mechanismen."
   }
 }
