@@ -1,0 +1,108 @@
+{
+  "_art": "DESKRIPTIV. Je ein Vorwaertslauf, pythia-1.4b @ step98000, float32, CPU. Keine Entscheidungsregel, kein Urteil.",
+  "sprachsonde": "logsumexp der Masse auf 31 deutschen minus 31 englischen Funktionswoertern, alle Einzeltoken.",
+  "sprachverfolgung": {
+    "signal_mittel": {
+      "en": -6.310602049225742,
+      "de": 1.783055586711541
+    },
+    "anteil_deutsch_vorn": {
+      "en": 0.019417475728155338,
+      "de": 0.8823529411764706
+    },
+    "einschub_The_position": 113,
+    "einschub_The_verlauf": {
+      "davor_mit": 3.355,
+      "The": -0.597,
+      "Hollywood": -3.127,
+      "Reporter": 1.603,
+      "im": 1.378
+    },
+    "englische_namenspassage": {
+      "mittel": 0.408,
+      "uebriger_text": 1.849,
+      "differenz": -1.441
+    }
+  },
+  "tokenidentischer_vergleich_mcquarrie": {
+    "tokens": [
+      "ĠMc",
+      "Qu",
+      "ar",
+      "rie"
+    ],
+    "ids": [
+      3044,
+      3864,
+      274,
+      6595
+    ],
+    "en_position": 124,
+    "de_position": 194,
+    "en_signal": [
+      -2.236,
+      -2.178,
+      -5.444,
+      -11.636
+    ],
+    "de_signal": [
+      -2.628,
+      -1.428,
+      -3.173,
+      1.321
+    ],
+    "en_tiefe": [
+      23,
+      19,
+      22,
+      24
+    ],
+    "de_tiefe": [
+      23,
+      19,
+      24,
+      11
+    ]
+  },
+  "vorhersagetiefe": {
+    "definition": "kleinste Schicht, ab der das argmax des Logit Lens bis zum Ende stabil ist",
+    "mittel": {
+      "en": 19.0873786407767,
+      "de": 20.65015479876161
+    },
+    "roh_de_minus_en": 1.56,
+    "nur_wortanfaenge_de_minus_en": 3.18,
+    "haeufigkeitsabgeglichen_de_minus_en": 1.34,
+    "r_tiefe_gegen_log_token_id": {
+      "en": 0.312,
+      "de": 0.378
+    },
+    "r_tiefe_gegen_ueberraschung": {
+      "en": 0.242,
+      "de": 0.294
+    },
+    "verworfene_fassung": "KL<0.1 - 90 Prozent aller Positionen auf dem Maximum 24, keine Streuung, misst nichts."
+  },
+  "ueberraschung": {
+    "mittel": {
+      "en": 2.9152238459150572,
+      "de": 2.7121660330621107
+    },
+    "perplexitaet": {
+      "en": 18.45294255628269,
+      "de": 15.06186470442966
+    },
+    "anteil_wortanfaenge": {
+      "en": 0.7233009708737864,
+      "de": 0.47058823529411764
+    },
+    "warnung": "Roh ist Deutsch LEICHTER (Perplexitaet 15.1 gegen 18.5). Das ist ein Fragmentierungsartefakt: nur 47 Prozent der deutschen Token sind Wortanfaenge gegen 72 Prozent im Englischen. Nur an Wortanfaengen verglichen dreht sich das Vorzeichen: Deutsch +0.875 nats schwerer."
+  },
+  "morse_braille": {
+    "morse_token_je_zeichen": 0.45,
+    "morse_vokabeleintraege_aus_punkt_strich": 72,
+    "braille_token_je_zeichen": 3.0,
+    "braille_vokabeleintraege": 0,
+    "bemerkung": "Braille hat KEINEN einzigen Vokabeleintrag; jedes Zeichen zerfaellt in seine drei UTF-8-Bytes. Kein Traeger, an dem ein Effekt ansetzen koennte - dieselbe Lage wie bei WASD. Morse dagegen hat Traeger."
+  }
+}
