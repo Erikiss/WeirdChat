@@ -1,0 +1,33 @@
+{
+  "herkunft": "PDF-Export des Colab-Laufs vom 2026-09-14, 11:52. Die vollen Rohtabellen (baselines.csv mit 720 Zeilen, patch_responses.csv mit 2880 Zeilen) lagen nur im fluechtigen Colab-Dateisystem und sind nicht erhalten. Hier stehen die im Bericht ausgegebenen Mittel auf vier Nachkommastellen.",
+  "modell": "EleutherAI/pythia-1.4b",
+  "revision": "step98000",
+  "praezision": "float32",
+  "batchgroesse": 1,
+  "geraet": "cuda",
+  "tokenizer_sha256": "c24618a1b3e6a38167beff1c72cffd126c3a66254347304b50547d12c5f25624",
+  "forward_laeufe_gesamt": 18024,
+  "ms_je_lauf": 25.2,
+  "max_selbstpatch_fehler": 0.0,
+  "max_residual_fehler_absolut": 1.526e-05,
+  "schranke_residual_relativ": 0.0001,
+  "anteil_abstand_zu_klein": 0.0,
+  "sigma_zwischen_schablonen": 1.4579,
+  "unterbestimmt_laut_vorregistrierung": true,
+  "entscheidungsfeld_der_regel": "bewegung",
+  "vorsprung_nats": -0.13,
+  "beste_kontrolle": "WASV",
+  "vorsprung_gegen_quantil_nats": 0.0387,
+  "beobachtungsteil": false,
+  "beobachtungsteil_quantilsfassung": false,
+  "laengster_kausallauf": 0,
+  "kausalteil": false,
+  "wasd_traeger_bestaetigt": false,
+  "getrennt_berichtet": {
+    "ESDF": {
+      "bewegung": -8.933,
+      "tastatur": -5.8724,
+      "gegenfeld": -11.3276
+    }
+  }
+}
