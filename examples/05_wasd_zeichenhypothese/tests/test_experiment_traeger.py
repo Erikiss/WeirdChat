@@ -19,9 +19,13 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from experiment_traeger import (  # noqa: E402
+    MESSVOKABULAR,
+    MESSVOKABULAR_IDS,
     MINDEST_KONTROLLEN,
+    ROLLE_GETRENNT,
     SCHABLONEN,
     ZIEL_ZERLEGUNG,
+    ZUSATZKONTROLLEN,
     Beobachtung,
     Kausalmessung,
     Variante,
@@ -36,6 +40,15 @@ from experiment_traeger import (  # noqa: E402
 #: Die echten Abweichler im GPT-NeoX-Vokabular: ASE, ASH, ASK, ASS und AST sind
 #: eigene Vokabeleintraege, deshalb zerfaellt " WASH" in ['ĠW', 'ASH'].
 ABWEICHLER = {"WASE", "WASH", "WASK", "WASS", "WAST"}
+
+#: Die am Tokenizer von ``EleutherAI/pythia-1.4b`` abgelesenen Zerlegungen der
+#: Zusatzkontrollen. ``FORD`` teilt mit dem Ziel das **letzte** Token (ID 37),
+#: ``NOTA`` teilt nur die Struktur, ``ESDF`` teilt nicht einmal die Tokenzahl.
+ZUSATZ_ZERLEGUNGEN: dict[str, tuple[list[str], list[int]]] = {
+    "FORD": (["ĠFOR", "D"], [6651, 37]),
+    "NOTA": (["ĠNOT", "A"], [5803, 34]),
+    "ESDF": (["ĠE", "SD", "F"], [444, 3871, 39]),
+}
 
 
 class FalscheKodierung:
@@ -59,6 +72,9 @@ class FalscherTokenizer:
         wort = sequence.strip()
         if wort == "ASDW":
             return FalscheKodierung(["ĠASD", "W"], [29895, 56])
+        if wort in ZUSATZ_ZERLEGUNGEN:
+            tokens, ids = ZUSATZ_ZERLEGUNGEN[wort]
+            return FalscheKodierung(list(tokens), list(ids))
         if wort in ABWEICHLER:
             return FalscheKodierung(["ĠW", wort[1:]], [411, 9434])
         if wort.startswith("WAS") and len(wort) == 4:
@@ -82,6 +98,11 @@ def test_design_besteht_und_verwirft_genau_die_abweichler():
     assert pruefung.n_buchstabenkontrollen == 20
     assert pruefung.erstes_token_identisch
     assert pruefung.letzte_token_eindeutig
+    # Ziel, 25 Buchstabenkandidaten, Reihenfolge- und drei Zusatzkontrollen.
+    assert pruefung.n_varianten == 1 + 25 + 1 + len(ZUSATZKONTROLLEN)
+    # In die Messung gehen 20 Buchstabenkontrollen, Ziel, Reihenfolge und die drei
+    # Zusatzkontrollen: 25 Varianten mal 24 Schablonen.
+    assert pruefung.n_messpunkte == 25 * len(SCHABLONEN)
 
 
 def test_brauchbare_kontrollen_teilen_das_erste_token_mit_dem_ziel():
@@ -224,3 +245,209 @@ def test_fehlendes_ziel_wirft():
 def test_fehlende_kontrollen_werfen():
     with pytest.raises(ValueError):
         urteile([Beobachtung("WASD", "ziel", 1.0, 0.0, 0.0)], _kausal([(12, 0.9, 0.0)]))
+
+
+# --------------------------------------------------------------------------- #
+# Zusatzkontrollen
+# --------------------------------------------------------------------------- #
+
+
+def test_ford_teilt_mit_dem_ziel_genau_das_letzte_token():
+    """Die schaerfste Kontrolle des Designs - und der Grund, warum sie das ist.
+
+    Traegt allein der Buchstabe ``D`` am Ende den Effekt, dann muss ``FORD`` ihn
+    ebenso zeigen: dasselbe letzte Token, dieselbe Position, anderer Stamm. Ein
+    Effekt, der bei WASD auftritt und bei FORD nicht, kann nicht am Endtoken haengen.
+    """
+    nach_text = {v.text: v for v in _varianten()}
+    ziel, ford = nach_text["WASD"], nach_text["FORD"]
+    assert ford.rolle == "endtokenkontrolle"
+    assert ford.token_ids[-1] == ziel.token_ids[-1]
+    assert ford.token_ids[0] != ziel.token_ids[0]
+    assert len(ford.zerlegung) == len(ziel.zerlegung)
+
+
+def test_nota_ist_strukturgleich_aber_nicht_endtokengleich():
+    """Die Frequenz-Nulllinie: gleiche Bauform, kein geteiltes Token."""
+    nach_text = {v.text: v for v in _varianten()}
+    ziel, nota = nach_text["WASD"], nach_text["NOTA"]
+    assert nota.rolle == "frequenzkontrolle"
+    assert len(nota.zerlegung) == len(ziel.zerlegung)
+    assert set(nota.token_ids).isdisjoint(ziel.token_ids)
+
+
+def test_die_unabgeglichene_tastenkontrolle_ist_bewusst_nicht_strukturgleich():
+    """``ESDF`` zerfaellt in drei Stuecke - und faellt trotzdem nicht durchs Design.
+
+    Gerade weil sie die Struktur verletzt, darf sie nicht in die Hauptregel; dass
+    das Design sie durchlaesst, ist die Ausnahme, die ``ROLLE_GETRENNT`` benennt.
+    """
+    nach_text = {v.text: v for v in _varianten()}
+    esdf = nach_text["ESDF"]
+    assert esdf.rolle == ROLLE_GETRENNT
+    assert len(esdf.zerlegung) != len(ZIEL_ZERLEGUNG)
+    assert pruefe_design(_varianten()).bestanden
+
+
+def test_eine_strukturverletzende_zusatzkontrolle_faellt_sonst_durch():
+    """Gegenprobe: dieselbe Zerlegung unter einer Rolle der Hauptregel faellt durch.
+
+    Ohne diesen Test liesse sich nicht unterscheiden, ob das Design ESDF wegen
+    seiner Rolle durchlaesst oder ob es die Tokenzahl von Zusatzkontrollen gar
+    nicht prueft.
+    """
+    varianten = [
+        v if v.text != "ESDF" else Variante("ESDF", "frequenzkontrolle", v.zerlegung, v.token_ids)
+        for v in _varianten()
+    ]
+    pruefung = pruefe_design(varianten)
+    assert not pruefung.bestanden
+    assert any("ESDF" in mangel for mangel in pruefung.maengel)
+
+
+# --------------------------------------------------------------------------- #
+# Die getrennt berichtete Kontrolle und die Quantilsfassung
+# --------------------------------------------------------------------------- #
+
+
+def test_die_getrennte_kontrolle_kann_den_befund_nicht_kippen():
+    """Gepflanzte Wahrheit: ESDF liegt hoeher als das Ziel - und zaehlt trotzdem nicht.
+
+    Sie ist nicht strukturgleich und im Korpus zwoelfmal seltener; ihr Wert waere
+    mit dem des Ziels nicht vergleichbar. Deshalb steht sie im Bericht, aber nicht
+    in der Regel.
+    """
+    beobachtungen = _beobachtungen(2.0, [0.5, 0.4])
+    beobachtungen.append(Beobachtung("ESDF", ROLLE_GETRENNT, 9.9, 0.0, 0.0))
+    urteil = urteile(beobachtungen, _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)]))
+    assert urteil["beste_kontrolle"] == "WAS0"
+    assert urteil["n_kontrollen_in_der_regel"] == 2
+    assert urteil["getrennt_berichtet"] == {"ESDF": 9.9}
+    assert urteil["wasd_traeger_bestaetigt"] is True
+
+
+def test_die_getrennte_kontrolle_kann_den_befund_auch_nicht_stuetzen():
+    """Gegenrichtung: ein sehr niedriger Wert darf das Urteil ebensowenig heben."""
+    ohne = urteile(
+        _beobachtungen(0.6, [0.5]), _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)])
+    )
+    mit = urteile(
+        _beobachtungen(0.6, [0.5]) + [Beobachtung("ESDF", ROLLE_GETRENNT, -5.0, 0.0, 0.0)],
+        _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)]),
+    )
+    assert ohne["vorsprung_nats"] == mit["vorsprung_nats"]
+    assert mit["beobachtungsteil"] is False
+
+
+def test_zusatzkontrollen_der_hauptregel_zaehlen_mit():
+    """FORD und NOTA sind Kontrollen wie jede andere - auch fuer das Maximum."""
+    beobachtungen = _beobachtungen(2.0, [0.1, 0.1])
+    beobachtungen.append(Beobachtung("FORD", "endtokenkontrolle", 1.9, 0.0, 0.0))
+    urteil = urteile(beobachtungen, _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)]))
+    assert urteil["beste_kontrolle"] == "FORD"
+    assert urteil["n_kontrollen_in_der_regel"] == 3
+    assert urteil["beobachtungsteil"] is False
+
+
+def test_quantilsfassung_ist_nachsichtiger_als_das_maximum():
+    """Beide Fassungen stehen vorab fest und werden beide berichtet.
+
+    Gepflanzte Wahrheit: eine einzige hohe Kontrolle unter zwanzig. Gegen das
+    Maximum faellt der Befund, gegen das 90-Prozent-Quantil haelt er - und genau
+    dieser Unterschied ist der Grund, beide Zahlen zu berichten statt nachtraeglich
+    die guenstigere zu waehlen.
+    """
+    urteil = urteile(
+        _beobachtungen(2.0, [1.9] + [0.1] * 19),
+        _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)]),
+    )
+    assert urteil["vorsprung_nats"] == pytest.approx(0.1)
+    assert urteil["beobachtungsteil"] is False
+    # Bei zwanzig Werten liegt die Quantilsstelle bei 0.9 * 19 = 17.1, also klar
+    # unterhalb des Ausreissers auf Rang 20.
+    assert urteil["vorsprung_gegen_quantil_nats"] == pytest.approx(1.9)
+    assert urteil["beobachtungsteil_quantilsfassung"] is True
+    # Das Gesamturteil folgt der Hauptfassung; die Zweitfassung steht daneben.
+    assert urteil["wasd_traeger_bestaetigt"] is False
+
+
+def test_quantil_und_maximum_fallen_bei_gleichverteilten_kontrollen_zusammen():
+    """Ohne Ausreisser trennt die Zweitfassung nichts - sie ist keine Hintertuer."""
+    urteil = urteile(
+        _beobachtungen(2.0, [0.5] * 10), _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)])
+    )
+    assert urteil["vorsprung_nats"] == pytest.approx(urteil["vorsprung_gegen_quantil_nats"])
+
+
+def test_quantil_ist_bei_einer_einzigen_kontrolle_das_maximum():
+    """Randfall: bei n = 1 darf die Interpolation nicht aus dem Index laufen."""
+    urteil = urteile(_beobachtungen(2.0, [0.5]), _kausal([(12, 0.9, 0.0)]))
+    assert urteil["vorsprung_gegen_quantil_nats"] == pytest.approx(1.5)
+
+
+def test_nur_die_getrennte_kontrolle_reicht_nicht_als_kontrollfamilie():
+    """Faellt die Hauptfamilie weg, muss die Regel schweigen statt auszuweichen."""
+    with pytest.raises(ValueError):
+        urteile(
+            [
+                Beobachtung("WASD", "ziel", 2.0, 0.0, 0.0),
+                Beobachtung("ESDF", ROLLE_GETRENNT, 0.1, 0.0, 0.0),
+            ],
+            _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)]),
+        )
+
+
+def test_die_vorregistrierte_kontextzahl_ist_die_zahl_der_schablonen():
+    """Sonst behauptete die Vorregistrierung eine andere Messung als die stattfindet.
+
+    Die Zahl stand bei acht, als das Design acht Schablonen hatte. Sie wird jetzt
+    abgeleitet; dieser Test haelt fest, dass sie es bleibt.
+    """
+    assert Vorregistrierung().n_kontexte_je_variante == len(SCHABLONEN)
+
+
+def test_die_kontextzahl_bleibt_ueber_der_grenze_der_trennschaerfe():
+    """Unter zwoelf Kontexten faellt die Trennschaerfe bei sigma = 0.5 nats unter 0.5."""
+    assert Vorregistrierung().n_kontexte_je_variante >= 12
+
+
+# --------------------------------------------------------------------------- #
+# Das Messvokabular
+# --------------------------------------------------------------------------- #
+
+
+def test_zu_jedem_messwort_gehoert_genau_eine_token_id():
+    """Die ID-Tabelle ist der Beleg, dass jedes Wort ein Einzeltoken ist.
+
+    Ohne sie waere ``" strafe"`` nicht aufgefallen: es zerfaellt in
+    ``['Ġstra', 'fe']``, und die Sonde haette dann die Wahrscheinlichkeit von
+    *stra* gemessen - ein Stueck, das es mit *strategy*, *strange* und *straight*
+    teilt.
+    """
+    assert set(MESSVOKABULAR_IDS) == set(MESSVOKABULAR)
+    for feld, woerter in MESSVOKABULAR.items():
+        assert len(MESSVOKABULAR_IDS[feld]) == len(woerter), feld
+
+
+def test_kein_messwort_wird_in_zwei_feldern_gezaehlt():
+    """Die Felder werden gegeneinander verrechnet - eine Ueberschneidung verwischte das."""
+    alle_ids = [i for ids in MESSVOKABULAR_IDS.values() for i in ids]
+    assert len(set(alle_ids)) == len(alle_ids)
+    alle_woerter = [w for ws in MESSVOKABULAR.values() for w in ws]
+    assert len(set(alle_woerter)) == len(alle_woerter)
+
+
+def test_jedes_messwort_beginnt_mit_einem_leerzeichen():
+    """Ohne fuehrendes Leerzeichen waere es das Wortinnere, nicht der Wortanfang."""
+    for woerter in MESSVOKABULAR.values():
+        for wort in woerter:
+            assert wort.startswith(" ") and wort[1:].strip() == wort[1:]
+
+
+def test_die_ersetzten_woerter_stehen_nicht_mehr_im_vokabular():
+    """``" strafe"`` und ``" senate"`` sind keine Einzeltoken und wurden ersetzt."""
+    alle = {w for ws in MESSVOKABULAR.values() for w in ws}
+    assert " strafe" not in alle
+    assert " senate" not in alle
+    assert " sprint" in MESSVOKABULAR["bewegung"]
+    assert " parliament" in MESSVOKABULAR["gegenfeld"]

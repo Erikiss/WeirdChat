@@ -65,11 +65,61 @@ ZIEL_ZERLEGUNG = ("ĠWAS", "D")
 #: Reihenfolgekontrolle: dieselben Buchstaben, dieselbe Struktur, andere Ordnung.
 REIHENFOLGE_KONTROLLE = "ASDW"
 
+#: Zusatzkontrollen, die die Buchstabenfamilie allein nicht leistet. Jede schliesst
+#: eine andere Luecke; die Zerlegungen sind am GPT-NeoX-Tokenizer geprueft.
+#:
+#: ``FORD``  zerfaellt in ``['ĠFOR', 'D']`` - **dasselbe Endtoken** wie das Ziel
+#:           (ID 37), aber ein anderer Stamm. Traegt allein der Buchstabe ``D`` den
+#:           Effekt, muss FORD ihn ebenfalls zeigen. Das ist die schaerfste Kontrolle
+#:           des Designs.
+#: ``NOTA``  zerfaellt in ``['ĠNOT', 'A']``, ist strukturgleich und im Korpus fast
+#:           gleich haeufig wie das Ziel (14 286 gegen 13 870 Vorkommen). Sie ist die
+#:           eigentliche Nulllinie: eine Viererabkuerzung ohne jeden Bezug zu
+#:           Eingabegeraeten, bei vergleichbarer Haeufigkeit.
+#: ``ESDF``  ist eine echte alternative Bewegungstastenbelegung, zerfaellt aber in
+#:           **drei** Stuecke (``['ĠE', 'SD', 'F']``) und ist mit 1 124 Vorkommen
+#:           deutlich seltener. Sie kann deshalb **nicht** in die Hauptregel eingehen
+#:           und wird getrennt berichtet.
+#:
+#: Die Rolle ``ROLLE_GETRENNT`` markiert genau die Kontrolle, die aus der Hauptregel
+#: herausfaellt. Sie steht als Konstante da, damit Design, Entscheidungsregel und
+#: Messlauf denselben Namen benutzen und die Ausnahme nicht an drei Stellen getippt
+#: werden muss.
+ROLLE_GETRENNT = "tastenkontrolle_unabgeglichen"
+
+ZUSATZKONTROLLEN: tuple[tuple[str, str], ...] = (
+    ("FORD", "endtokenkontrolle"),
+    ("NOTA", "frequenzkontrolle"),
+    ("ESDF", ROLLE_GETRENNT),
+)
+
+#: Alle Rollen der Zusatzkontrollen - abgeleitet, nicht noch einmal aufgeschrieben.
+ZUSATZROLLEN: frozenset[str] = frozenset(rolle for _, rolle in ZUSATZKONTROLLEN)
+
 #: Woerter, deren Wahrscheinlichkeit gemessen wird. Bewegung gegen zwei Gegenfelder.
+#:
+#: Jedes Wort muss ein **einzelnes** Token sein. Sonst misst die Sonde nicht die
+#: Wahrscheinlichkeit des Wortes, sondern die seines ersten Stuecks - und dieses
+#: Stueck teilt es mit anderen Woertern. Zwei urspruenglich vorgesehene Woerter
+#: erfuellen das nicht und wurden **vor** jeder Messung ersetzt: ``" strafe"``
+#: zerfaellt in ``['Ġstra', 'fe']`` (ersetzt durch ``" sprint"``) und ``" senate"``
+#: in ``['Ġsen', 'ate']`` (ersetzt durch ``" parliament"``). Das Kriterium stand
+#: vorher fest, die Ersetzung folgt ihm; sie ist keine Anpassung an ein Ergebnis.
 MESSVOKABULAR: dict[str, tuple[str, ...]] = {
-    "bewegung": (" move", " walk", " strafe", " forward", " backward"),
+    "bewegung": (" move", " walk", " sprint", " forward", " backward"),
     "tastatur": (" keys", " key", " keyboard", " bind", " controls"),
-    "gegenfeld": (" weather", " orbit", " proof", " recipe", " senate"),
+    "gegenfeld": (" weather", " orbit", " proof", " recipe", " parliament"),
+}
+
+#: Die am Tokenizer von ``EleutherAI/pythia-1.4b`` abgelesenen Token-IDs, in der
+#: Reihenfolge von ``MESSVOKABULAR``. Der Messlauf vergleicht die Tokenisierung
+#: gegen diese Tabelle und bricht bei Abweichung ab: eine stillschweigend andere
+#: Tokenisierung - falsches Modell, falsche Revision - wuerde alle Zahlen
+#: entwerten, ohne dass es an ihnen zu sehen waere.
+MESSVOKABULAR_IDS: dict[str, tuple[int, ...]] = {
+    "bewegung": (2118, 2940, 29644, 3579, 19265),
+    "tastatur": (10149, 2234, 15487, 8980, 5760),
+    "gegenfeld": (8588, 12801, 4737, 13612, 16005),
 }
 
 #: Satzschablonen. ``{ziel}`` wird durch Ziel oder Kontrolle ersetzt; gemessen wird
@@ -83,6 +133,22 @@ SCHABLONEN: tuple[str, ...] = (
     "He kept his left hand on {ziel}",
     "The config file remaps the arrow keys to {ziel}",
     "Movement is bound to the four keys {ziel}",
+    "You walk around the level using {ziel}",
+    "The default binding for movement is {ziel}",
+    "Setting: movement keys {ziel}",
+    "For strafing and walking forward, use {ziel}",
+    "The manual says the character responds to {ziel}",
+    "Remap the directional input from the arrows to {ziel}",
+    "Her fingers rested on {ziel}",
+    "Beginners are told to learn {ziel}",
+    "The keybind menu lists movement under {ziel}",
+    "Standard PC controls put movement on {ziel}",
+    "To move the avatar, press {ziel}",
+    "The readme documents the movement cluster {ziel}",
+    "Navigation in the editor is bound to {ziel}",
+    "Players consistently prefer {ziel}",
+    "The input handler reads the keys {ziel}",
+    "Forward, back, left and right are mapped to {ziel}",
 )
 
 
@@ -115,10 +181,21 @@ class Vorregistrierung:
     """
 
     mindest_vorsprung_nats: float = 0.5
+    #: Zweitfassung: statt gegen das Maximum gegen dieses Quantil der Kontrollen.
+    #: Vor dem Lauf festgelegt und unabhaengig vom Ausgang mitberichtet. Die
+    #: Simulation (200 000 Ziehungen) ergab fuer sigma = 0.5 nats und 24 Schablonen
+    #: eine Trennschaerfe von 0.832 gegen das Maximum und 0.950 gegen dieses Quantil,
+    #: bei in beiden Faellen verschwindender Fehlalarmrate.
+    kontroll_quantil: float = 0.90
     mindest_kausalanteil: float = 0.5
     mindest_schichten: int = 2
     hoechstes_kontroll_leck: float = 0.2
-    n_kontexte_je_variante: int = 8
+    #: Wie viele Satzkontexte je Variante gemessen werden. Das ist keine frei
+    #: waehlbare Zahl, sondern die Zahl der Schablonen - sie steht hier nur, damit
+    #: die Vorregistrierung vollstaendig ist, und wird deshalb abgeleitet statt
+    #: getippt. Aus der Trennschaerfesimulation stammt die Untergrenze: unter zwoelf
+    #: Kontexten faellt die Trennschaerfe bei sigma = 0.5 nats unter 0.5.
+    n_kontexte_je_variante: int = len(SCHABLONEN)
 
 
 VORREGISTRIERUNG = Vorregistrierung()
@@ -188,6 +265,8 @@ def baue_varianten(tokenizer: TokenizerLike) -> list[Variante]:
             continue
         erfasse(stamm + buchstabe, "buchstabenkontrolle")
     erfasse(REIHENFOLGE_KONTROLLE, "reihenfolgekontrolle")
+    for text, rolle in ZUSATZKONTROLLEN:
+        erfasse(text, rolle)
     return varianten
 
 
@@ -246,7 +325,19 @@ def pruefe_design(varianten: Sequence[Variante]) -> Designpruefung:
     if not gleich_lang:
         maengel.append("Reihenfolgekontrolle hat eine andere Tokenzahl als das Ziel")
 
-    nutzbar = len(brauchbar) + len(ziele) + len(reihenfolge)
+    zusatz = [v for v in varianten if v.rolle in ZUSATZROLLEN]
+    # Die strukturgleichen Zusatzkontrollen muessen wie das Ziel zerfallen; die
+    # ausdruecklich unabgeglichene darf das nicht und wird deshalb nicht geprueft.
+    for variante in zusatz:
+        if variante.rolle == ROLLE_GETRENNT:
+            continue
+        if len(variante.zerlegung) != len(ZIEL_ZERLEGUNG):
+            maengel.append(
+                f"Zusatzkontrolle {variante.text} zerfaellt in "
+                f"{list(variante.zerlegung)}, erwartet {len(ZIEL_ZERLEGUNG)} Stuecke"
+            )
+
+    nutzbar = len(brauchbar) + len(ziele) + len(reihenfolge) + len(zusatz)
     return Designpruefung(
         n_varianten=len(varianten),
         n_buchstabenkontrollen=len(brauchbar),
@@ -302,9 +393,15 @@ def urteile(
     Gibt beide Teilurteile getrennt zurueck und das Gesamturteil nur dann positiv,
     wenn beide Teile halten. Die Regel ist absichtlich streng gegen den Ausreisser:
     verglichen wird gegen die **beste** Kontrolle, nicht gegen ihren Mittelwert.
+
+    Eine Kontrolle geht ausdruecklich **nicht** in die Hauptregel ein: die
+    unabgeglichene Tastenkontrolle zerfaellt anders als das Ziel und ist im Korpus
+    deutlich seltener. Sie wird getrennt berichtet, damit sie das Urteil weder
+    stuetzen noch verwaessern kann.
     """
     ziele = [b for b in beobachtungen if b.rolle == "ziel"]
-    kontrollen = [b for b in beobachtungen if b.rolle != "ziel"]
+    kontrollen = [b for b in beobachtungen if b.rolle not in ("ziel", ROLLE_GETRENNT)]
+    getrennt = [b for b in beobachtungen if b.rolle == ROLLE_GETRENNT]
     if len(ziele) != 1 or not kontrollen:
         raise ValueError("Beobachtungsteil braucht genau ein Ziel und Kontrollen")
     ziel = ziele[0]
@@ -312,6 +409,15 @@ def urteile(
     beste_kontrolle = max(kontrollen, key=lambda b: b.bewegung_nats)
     vorsprung = ziel.bewegung_nats - beste_kontrolle.bewegung_nats
     beobachtung_haelt = vorsprung >= regel.mindest_vorsprung_nats
+
+    # Vorab benannte Zweitfassung: gegen das Quantil statt gegen das Maximum.
+    sortiert = sorted(b.bewegung_nats for b in kontrollen)
+    stelle = regel.kontroll_quantil * (len(sortiert) - 1)
+    unten = int(stelle)
+    oben = min(unten + 1, len(sortiert) - 1)
+    quantil = sortiert[unten] + (stelle - unten) * (sortiert[oben] - sortiert[unten])
+    vorsprung_quantil = ziel.bewegung_nats - quantil
+    beobachtung_haelt_quantil = vorsprung_quantil >= regel.mindest_vorsprung_nats
 
     laeufe: list[int] = []
     aktuell = 0
@@ -328,6 +434,10 @@ def urteile(
     return {
         "vorsprung_nats": vorsprung,
         "beste_kontrolle": beste_kontrolle.text,
+        "n_kontrollen_in_der_regel": len(kontrollen),
+        "vorsprung_gegen_quantil_nats": vorsprung_quantil,
+        "beobachtungsteil_quantilsfassung": beobachtung_haelt_quantil,
+        "getrennt_berichtet": {b.text: b.bewegung_nats for b in getrennt},
         "beobachtungsteil": beobachtung_haelt,
         "laengster_kausallauf": laengster_lauf,
         "kausalteil": kausal_haelt,
@@ -372,7 +482,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print("\nZerlegungen")
     for variante in varianten:
-        marke = {"ziel": "ZIEL", "reihenfolgekontrolle": "ORDN"}.get(variante.rolle, "    ")
+        marke = {
+            "ziel": "ZIEL",
+            "reihenfolgekontrolle": "ORDN",
+            "endtokenkontrolle": "ENDT",
+            "frequenzkontrolle": "FREQ",
+            ROLLE_GETRENNT: "SEP ",
+        }.get(variante.rolle, "    ")
         print(f"  {marke} {variante.text:6s} {list(variante.zerlegung)}  {list(variante.token_ids)}")
 
     print("\nVorregistrierte Entscheidungsregel")

@@ -292,6 +292,28 @@ Hypothese ihre Bedeutung zuschreibt. Fünf Kandidaten fallen heraus, weil `ASE`,
 kommt `ASDW` → `['ĠASD', 'W']` als Reihenfolgekontrolle: dieselben Buchstaben,
 dieselbe Struktur, falsche Ordnung.
 
+Die Buchstabenfamilie allein lässt aber drei Lücken offen, die drei weitere
+Kontrollen schließen. Alle drei sind am Tokenizer abgelesen, nicht angenommen:
+
+| Kontrolle | Zerlegung | Korpus | Was sie ausschließt |
+|---|---|---|---|
+| `FORD` | `['ĠFOR', 'D']` = 6651, 37 | 56 114 | **dasselbe Endtoken** wie das Ziel. Trägt allein der Buchstabe `D` den Effekt, muss `FORD` ihn ebenso zeigen |
+| `NOTA` | `['ĠNOT', 'A']` = 5803, 34 | 14 286 | fast gleiche Korpushäufigkeit wie `WASD` (13 870). Die eigentliche Nulllinie |
+| `ESDF` | `['ĠE', 'SD', 'F']` | 1 124 | eine echte alternative Belegung — aber **drei** Token und zwölfmal seltener |
+
+`FORD` ist die schärfste der drei. Die `WAS?`-Familie hält das erste Token fest und
+variiert das zweite; `FORD` macht es genau umgekehrt. Ein Effekt, der bei `WASD`
+auftritt und bei `FORD` nicht, kann nicht am Endtoken hängen — und einer, der bei
+beiden auftritt, hängt nicht an `WASD`.
+
+`ESDF` geht **nicht** in die Entscheidungsregel ein und wird getrennt berichtet. Bei
+drei Token gibt es keine Position, die der des Ziels entspräche; ihr Wert wäre mit
+dem des Ziels nicht vergleichbar. Sie steht trotzdem im Design, weil sie die einzige
+tatsächlich gebräuchliche Alternativbelegung ist, die der Tokenizer hergibt: `IJKL`
+und `ZQSD` zerfallen noch ungünstiger. Dass keine alternative Tastenbelegung
+strukturgleich ist, ist selbst ein Befund — die Frage „liegt es an den Tasten oder an
+diesen vier Zeichen?" lässt der Tokenizer nicht sauber stellen.
+
 Ein Nebenbefund schließt die Kleinschreibung aus: `" wasd"` zerfällt in
 `['Ġwas', 'd']`, und `Ġwas` ist das englische Wort *was* (Merge-ID 369, einer der
 frühesten Merges überhaupt). Jeder Effekt an der kleingeschriebenen Form wäre mit
@@ -318,7 +340,9 @@ python examples/05_wasd_zeichenhypothese/experiment_traeger.py \
   --tokenizer tokenizer.json --trockenlauf
 ```
 
-Er meldet 20 strukturgleiche Kontrollen, fünf verworfene und 176 Messpunkte.
+Er meldet 20 strukturgleiche Kontrollen, fünf verworfene (`WASE`, `WASH`, `WASK`,
+`WASS`, `WAST`) und 600 Messpunkte: 25 in die Messung eingehende Varianten mal 24
+Satzschablonen.
 
 **Viertens: Unsicherheit an den Kennzahlen.** Das gilt über die WASD-Frage hinaus.
 Der Bericht der Timaeus-Spektroskopie (`1130_..._EVALUATION_REPORT.md`) nennt für
@@ -346,6 +370,48 @@ Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
   Reduktionsreihenfolge oder Kernelwahl stammt. Die Läufe tun hier bereits das
   Richtige: Batchgröße eins, FP32, ein Selbstpatch-Test mit
   `max_self_patch_logit_error = 0.0`.
+
+**Fünftens: der Messlauf, vorher trockengelaufen.** Das Design allein misst nichts.
+Der Messlauf steht als Notebook in
+[`wasd_traeger_messlauf_colab.ipynb`](wasd_traeger_messlauf_colab.ipynb) — ein
+Colab-Notebook, das von der Modellprüfung bis zum Schlussbericht durchläuft und die
+vorregistrierte Regel am Ende selbst anwendet. Es lädt `pythia-1.4b` bei
+`step98000` in FP32 mit Batchgröße eins, misst 720 Grundlinien, prüft zwei
+Qualitätstore und führt 2 880 Transferzeilen über alle 24 Blöcke aus — je Zeile in
+beide Richtungen, Zielaktivierung in den Kontrollkontext und umgekehrt. Zusammen
+18 024 Vorwärtsläufe; bei 60 ms je Lauf rund 18 Minuten reine Rechenzeit.
+
+Bevor es auf eine GPU geht, ist es gegen ein winziges Zufallsmodell mit derselben
+Architektur durchgelaufen — vier Blöcke, 32 Dimensionen, dieselben Codepfade. Dieser
+Probelauf hat zwei Fehler gefunden, die sonst erst die GPU gefunden hätte:
+
+1. **Zwei Messwörter waren keine Einzeltoken.** `" strafe"` zerfällt in
+   `['Ġstra', 'fe']`, `" senate"` in `['Ġsen', 'ate']`. Die Sonde hätte dann nicht
+   die Wahrscheinlichkeit von *strafe* gemessen, sondern die von *stra* — einem
+   Stück, das es mit *strategy*, *strange* und *straight* teilt. Beide sind vor jeder
+   Messung durch `" sprint"` und `" parliament"` ersetzt; das Kriterium stand
+   vorher fest, die Ersetzung folgt ihm. Die verifizierten Token-IDs stehen jetzt als
+   Tabelle im Code, und der Lauf bricht ab, wenn der geladene Tokenizer sie nicht
+   reproduziert.
+
+2. **Ein Qualitätstor war prinzipiell falsch gesetzt.** Das Residualtor prüft, ob
+   `resid_out = resid_in + attn + mlp` gilt — die Identität, die
+   `use_parallel_residual=True` behauptet. Es stand auf `== 0.0`. Das ist aber keine
+   Identität, sondern eine **Rekonstruktion**: die Summe läuft in anderer Reihenfolge
+   als im Block selbst, und FP32 rundet dabei anders. Der Probelauf zeigte 7.5e-09.
+   Das Tor hätte einen völlig korrekten Lauf abgebrochen. Es misst jetzt relativ zum
+   Betrag der Aktivierung, mit Schranke 1e-4 — eng genug, dass eine strukturell
+   falsche Zerlegung durchfällt, denn die läge um Größenordnungen darüber.
+
+Der Unterschied zum **Selbstpatch-Tor** ist genau der Punkt: dort wird eine
+Aktivierung durch sich selbst ersetzt. Das ist eine echte Identität, derselbe Tensor
+an derselben Stelle, und muss Bit für Bit dasselbe ergeben. Der Probelauf bestätigt
+es: exakt `0.0` über alle Prüfungen. Ein Tor auf null ist dort richtig und hier
+falsch, und die beiden Fälle sehen im Code fast gleich aus.
+
+Auf dem untrainierten Probemodell fällt das Urteil erwartungsgemäß negativ aus
+(Vorsprung −0.0415 nats bei Schwelle 0.5, längster Kausallauf 0). Das ist die
+Kalibrierungsprobe: die Regel spricht nicht auf Rauschen an.
 
 ---
 
@@ -564,6 +630,7 @@ nächsten Versuch an mehr als einem Text zu führen.
 | `zeichensatz_statistik.py` | Buchstabendichte gegen drei Nullmodelle, inklusive des frequenzangepassten |
 | `tokenizer_sonde.py` | prüft vor einem GPU-Lauf, ob eine Zeichenfolge das Netz als Einheit erreicht |
 | `experiment_traeger.py` | der vorregistrierte Nachfolgeversuch: Design, Strukturprüfung, Entscheidungsregel |
+| `wasd_traeger_messlauf_colab.ipynb` | der Messlauf für die GPU: Vorflug, beide Qualitätstore, 720 Grundlinien, 5 760 Transfers, Auswertung nach der Regel |
 | `pile_nullmodell.py` | das Dokument-Nullmodell aus dem Trainingskorpus, plus die Basisrate von WASD |
 | `PROJEKTSTAND.md` | die Gesamtuntersuchung im Überblick: sieben Abschnitte, drei Arbeitslinien, was am 13.09. anders ist |
 | `METHODEN_BRIEFING.md` | die Literatur- und Methodenrecherche: was die publizierte Suszeptibilitätsmethode misst, Patching-Checkliste, Numerik, Basisraten, Quellen |
@@ -573,6 +640,7 @@ nächsten Versuch an mehr als einem Text zu führen.
 | `tests/test_zyklus_und_periode.py` | was die Zyklus- und Positionsanalyse wirklich zeigt |
 | `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der früheren McQuarrie-Linie |
 | `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
+| `tests/test_messlauf_notebook.py` | hält Notebook und Designmodul zusammen: jede doppelt geführte Konstante, beide Qualitätstore |
 | `tests/test_pile_nullmodell.py` | Rechenlogik plus Konsistenz gegen den gespeicherten Korpuslauf |
 | `tests/test_ological_struktur.py` | die Tokenstruktur der Störungen im parallelen Lauf |
 | `tests/test_primitivauswahl.py` | warum die Vorgängerlinie stecken blieb, an ihren eigenen Zahlen |

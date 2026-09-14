@@ -112,5 +112,39 @@ etwas auffiel.
    stärker" — ist deshalb nicht interpretierbar. Einzelheiten in
    [`METHODEN_BRIEFING.md`](METHODEN_BRIEFING.md).
 
+---
+
+## Der nächste Lauf ist gebaut
+
+Aus Punkt 4 folgt der Nachfolgeversuch, und der ist inzwischen vollständig
+ausformuliert: das Design in [`experiment_traeger.py`](experiment_traeger.py), der
+Messlauf in [`wasd_traeger_messlauf_colab.ipynb`](wasd_traeger_messlauf_colab.ipynb).
+
+Er stellt die Frage dort, wo sie eine Vorhersage macht — an Sätzen, in denen `WASD`
+als Tastenkürzel steht. Der Tokenizer liefert dafür ein ungewöhnlich sauberes
+Design: `" WASD"` zerfällt in genau zwei Stücke, also unterscheidet sich jede
+`WAS?`-Kontrolle vom Ziel in **genau einem Token**. Dazu drei Kontrollen, die die
+Buchstabenfamilie nicht leistet — `FORD` mit demselben Endtoken, `NOTA` mit fast
+gleicher Korpushäufigkeit, `ESDF` als getrennt berichtete Alternativbelegung.
+
+| | |
+|---|---|
+| Varianten | 30 gebaut, 25 in der Messung, 5 vom Tokenizer verworfen |
+| Messpunkte | 600 (25 × 24 Satzschablonen) |
+| Transferzeilen | 2 880 (5 Paare × 24 Schablonen × 24 Blöcke), je zwei Richtungen |
+| Vorwärtsläufe | 18 024 insgesamt — bei 60 ms je Lauf rund 18 Minuten |
+| Entscheidungsregel | vorregistriert, verlangt Beobachtungs- **und** Kausalteil |
+
+Das Notebook ist gegen ein winziges Zufallsmodell derselben Architektur
+durchgelaufen, bevor es eine GPU sieht. Dieser Probelauf hat zwei Fehler gefunden:
+zwei Messwörter, die keine Einzeltoken sind, und ein Qualitätstor, das auf `== 0.0`
+stand, obwohl es eine Rekonstruktion prüft und nicht eine Identität. Beides ist
+korrigiert; Einzelheiten in Abschnitt 5 von [`LIES_MICH.md`](LIES_MICH.md).
+
+Der Punkt gilt über diesen Lauf hinaus und ist derselbe wie Punkt 4 oben: Was vor dem
+GPU-Lauf in Sekunden zu klären ist, sollte vor dem GPU-Lauf geklärt werden.
+
+---
+
 Die ausführliche Begründung steht in [`LIES_MICH.md`](LIES_MICH.md), die
 Literatur- und Methodenlage in [`METHODEN_BRIEFING.md`](METHODEN_BRIEFING.md).
