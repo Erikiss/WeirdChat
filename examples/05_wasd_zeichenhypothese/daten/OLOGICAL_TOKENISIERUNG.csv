@@ -1,0 +1,9 @@
+fall,text,n_tokens,zerlegung,token_ids
+original, Meteorological,3,ĠMet|eor|ological,6365|22683|1975
+original_split, Mete orological,4,ĠMet|e|Ġo|rological,6365|70|258|36083
+zero, Mete0rological,4,ĠMet|e|0|rological,6365|70|17|36083
+one, Mete1rological,4,ĠMet|e|1|rological,6365|70|18|36083
+x_typo, Metexrological,3,ĠMet|ex|rological,6365|911|36083
+capital_o, MeteOrological,4,ĠMet|e|O|rological,6365|70|48|36083
+zero_transpose, Met0erological,4,ĠMet|0|er|ological,6365|17|254|1975
+one_transpose, Met1erological,4,ĠMet|1|er|ological,6365|18|254|1975

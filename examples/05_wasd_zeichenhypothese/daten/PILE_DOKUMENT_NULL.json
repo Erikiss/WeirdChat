@@ -1,0 +1,30 @@
+{
+  "datensatz": "NeelNanda/pile-10k",
+  "n_dokumente": 2863,
+  "n_zeichen": 20899761,
+  "zielbuchstaben": "WASDQERF",
+  "erwartete_dichte_englisch": 0.4134,
+  "mittel": 0.40864963371525104,
+  "standardabweichung": 0.02907504765509015,
+  "median": 0.40894885280890314,
+  "perzentile": {
+    "P01": 0.3323210151246354,
+    "P05": 0.3630188679245283,
+    "P25": 0.3922480620155039,
+    "P50": 0.40894885280890314,
+    "P75": 0.42559332905708785,
+    "P95": 0.45358649789029537,
+    "P99": 0.48124501197126895
+  },
+  "state60482_dichte": 0.3868194842406877,
+  "state60482_z": -0.7508207633407461,
+  "state60482_perzentil": 18.82640586797066,
+  "wasd_vorkommen": 0,
+  "wasd_dokumente": 0,
+  "wasd_je_million_zeichen": 0.0,
+  "wasd_nach_schreibweise": {
+    "WASD": 0,
+    "wasd": 0,
+    "Wasd": 0
+  }
+}

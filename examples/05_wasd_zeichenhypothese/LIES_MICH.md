@@ -7,8 +7,9 @@ mittleren Schichten Effekte wie Sprachwechsel oder Fehlerkorrektur aus?
 Die Antwort auf dem heutigen Stand der Messungen ist **nein**, und zwar deutlicher,
 als die Läufe selbst berichten. Was hier steht, ist kein Gegenargument gegen die
 Forschungslinie, sondern ihre Bilanz: drei Läufe vom 13. September 2026, exakt
-nachgerechnet, plus zwei Befunde, die in den Läufen nicht enthalten sind und die
-Richtung des Ergebnisses umdrehen.
+nachgerechnet, plus zwei Nullmodelle, die in den Läufen fehlen und die Richtung des
+Ergebnisses umdrehen, und eine Vorfrage, die vor jedem GPU-Lauf zu klären gewesen
+wäre: ob die Zeichenfolge das Netz überhaupt als Einheit erreicht.
 
 Der Gegenstand ist das Textfenster **State 60482** — 893 Zeichen, 698 Buchstaben,
 207 Token im GPT-NeoX-Tokenizer, ein Nachrichtenschnipsel aus dem Pile über
@@ -52,7 +53,7 @@ Die beiden Dichteläufe sind bis auf den Zeitstempel identisch.
 
 ---
 
-## 2. Zwei Befunde, die in den Läufen fehlen
+## 2. Was in den Läufen fehlt
 
 ### 2.1 Das Nullmodell ist verzerrt — und zwar genau in die Richtung des erhofften Ergebnisses
 
@@ -65,7 +66,7 @@ Englischen. Die erwartete Dichte dieser Achtermenge in gewöhnlichem englischem 
 beträgt **0.4134**; eine zufällig gezogene Achtermenge kommt im Mittel auf 0.3077.
 Ein positives z ist damit die Voreinstellung, nicht der Befund.
 
-Zwei Gegenproben, beide in `tests/` festgehalten:
+Drei Gegenproben, alle in `tests/` festgehalten:
 
 **Erstens, über die Geschwistertexte.** Dieselbe Kennzahl, berechnet für alle 19
 Fenster desselben Laufs:
@@ -103,6 +104,25 @@ Die Buchstaben einzeln betrachtet zerfällt die Gruppe ohnehin: W, S und D liege
 Großschreibung — kommt im Zieltext **halb so oft** vor wie im Gruppenmittel
 (Verhältnis 0.5088).
 
+**Drittens, gegen das Trainingskorpus selbst.** Die beiden Nullmodelle der Läufe
+vergleichen mit achtzehn Geschwisterfenstern und mit Buchstabenmengen. Die
+naheliegendste Bezugsgröße fehlt: gewöhnliche Dokumente aus dem Korpus, auf dem
+Pythia trainiert wurde. `pile_nullmodell.py` holt sie nach — 2 863 Dokumente aus
+The Pile, 20 899 761 Zeichen:
+
+| Kennzahl | Wert |
+|---|---|
+| mittlere WASDQERF-Dichte über Dokumente | 0.408650 |
+| Standardabweichung | 0.029075 |
+| Median | 0.408949 |
+| State 60482 | 0.386819 |
+| **z** | **−0.7508** |
+| **Perzentil** | **18.83** |
+
+Gegen das echte Trainingskorpus liegt das Zielfenster im unteren Fünftel. Der
+Korpusmittelwert 0.4087 bestätigt nebenbei die Standardtabelle (0.4134) als
+brauchbare Näherung — die Wahl der Häufigkeitsquelle ändert am Ergebnis nichts.
+
 ### 2.2 Die Zeichenfolge erreicht das Netz nicht als Einheit
 
 Vor jedem GPU-Lauf lässt sich eine Vorfrage klären: **Wie kommt `WASD` überhaupt im
@@ -119,8 +139,45 @@ Sondertoken) enthält:
 ```
 
 Kein einziger Vokabeleintrag enthält `wasd` als Teilkette, in keiner Schreibweise.
-Da BPE-Merges nach Häufigkeit entstehen, ist das zugleich ein Hinweis auf die
-Basisrate: wäre `WASD` im Trainingskorpus häufig, gäbe es dafür ein Token.
+Da BPE-Merges nach Häufigkeit entstehen, ist das ein Hinweis auf die Basisrate — und
+die lässt sich exakt nachzählen. Der Volltextindex **infini-gram** liefert über den
+gesamten Pile-Trainingssatz (`v4_piletrain_llama`, rund 380 Milliarden Token):
+
+| Zeichenfolge | Vorkommen im ganzen Pile |
+|---|---|
+| ` the` | 9 229 350 572 |
+| ` keyboard` | 2 791 750 |
+| ` Meteorological` | 115 452 |
+| ` McQuarrie` | 17 994 |
+| ` strafe` | 17 853 |
+| **` WASD`** | **13 870** |
+| ` WASD keys` | 2 776 |
+| ` use WASD` | 574 |
+| ` QERF` | 10 |
+
+Damit ist die Lage präziser als „selten": `WASD` kommt vor, rund zweihundertmal
+seltener als `keyboard`, und **jedes fünfte Vorkommen** wird direkt von `keys`
+gefolgt. Das Modell hat die Wendung also gesehen. Für einen eigenen BPE-Merge ist
+13 870 in 380 Milliarden Token trotzdem viel zu wenig — die relative Häufigkeit liegt
+bei etwa 3.6 · 10⁻⁸.
+
+Entscheidend bleibt der andere Punkt: **im Textfenster State 60482 steht `WASD`
+kein einziges Mal.** Was dort gezählt wurde, sind acht über den ganzen Text
+verstreute Buchstaben, nicht das Tastenkürzel.
+
+> **Zwei Warnungen in eigener Sache.** Erstens: Die erste Fassung der Zählung suchte
+> `wasd` als Teilkette in einer Stichprobe und meldete 22 Treffer — sämtlich der
+> englische Ortsname *Wasdale* und die Domain *wasdaleweb.com* aus einem einzigen
+> Reiseführer-Dokument. Zweitens: Nach der Korrektur auf Wortgrenzen meldete dieselbe
+> Stichprobe null Treffer, woraus hier zwischenzeitlich „kommt im Trainingskorpus
+> überhaupt nicht vor" wurde. Auch das war falsch. Die Stichprobe umfasst 20.9
+> Millionen Zeichen, also etwa ein Vierzigtausendstel des Pile; bei 13 870 Vorkommen
+> im Ganzen sind dort rund **0.35 Treffer zu erwarten**. Null zu finden war das
+> Erwartbare, nicht der Befund. Erst der Volltextindex beantwortet die Frage.
+>
+> Beide Fehler sind derselbe, den diese Mappe an den Läufen kritisiert: eine Zahl für
+> eine Antwort halten, ohne zu prüfen, was sie zählen kann. Sie stehen hier, weil ein
+> Dossier, das Nullmodelle einfordert, seine eigenen aushalten muss.
 
 Umgekehrt bestehen **931 Vokabeleinträge (1.85 Prozent)** ausschließlich aus
 WASDQERF-Buchstaben — darunter die frühesten und häufigsten Merges des Englischen:
@@ -161,7 +218,56 @@ erlauben. Die Permutationskorrektur fängt das ab; der rohe NMI-Wert täte es ni
 
 ---
 
-## 4. Was jetzt zu tun wäre
+## 4. Was die publizierte Methode selbst sagt
+
+Die Recherche in [`METHODEN_BRIEFING.md`](METHODEN_BRIEFING.md) hat einen Punkt
+zutage gefördert, der über die WASD-Frage hinausgeht und die gesamte Messlinie
+betrifft. Er steht in der Methodenbeschreibung des Verfahrens, das dieses Projekt
+benutzt.
+
+**Der Schätzer liefert nicht die Suszeptibilität, sondern ein Vielfaches davon.**
+Die Methodenseite zur Skalierung der Suszeptibilitäten schreibt es wörtlich — an der
+Quelle nachgeprüft:
+
+> „…is actually an estimator for the renormalized susceptibility
+> `Z_full/Z_C · χ^C_xy` **not for the population susceptibility itself**. This
+> `C`-dependent (but `xy`-independent) prefactor is absorbed by the column z-scoring
+> step…"
+
+Daraus folgt unmittelbar: **Ein Vergleich von Rohwerten zwischen Komponenten — also
+zwischen Schichten oder Köpfen — ist nicht interpretierbar.** Ein Satz wie „Schicht
+14 und 20 reagieren stärker" setzt genau das voraus, was der Schätzer nicht liefert.
+Erst nach der spaltenweisen Standardisierung sind Komponenten vergleichbar, und dann
+ist die Aussage eine über das *Profil*, nicht über die Höhe.
+
+Die Einschränkung gilt genau in eine Richtung: Der Vorfaktor ist ausdrücklich
+*`xy`-unabhängig*. **Innerhalb einer Komponente** dürfen Tokens also sehr wohl auf
+Rohwerten verglichen werden — dort kürzt sich der unbekannte Faktor heraus. Wer die
+Frage stellt „welches Token reagiert in Schicht 14 am stärksten", ist auf sicherem
+Boden; wer fragt „welche Schicht reagiert am stärksten", nicht.
+
+Zwei weitere Punkte derselben Art:
+
+- Die Zeilenzentrierung „deletes exactly the **1** direction", also den uniformen
+  Modus. Eine Aussage der Form „X ist global suszeptibler" ist damit **per
+  Konstruktion** aus den standardisierten Daten entfernt — sie kann dort weder
+  bestätigt noch widerlegt werden. (Die neuere Fassung ersetzt diesen Schritt durch
+  PCA-Whitening, mit demselben Effekt auf die uniforme Richtung.)
+- Die Zahl der gefundenen Cluster hängt stark an der Auswertungskette, nicht am
+  Modell; und die Autoren berichten selbst, dass schon eine **Gauß-Grundlinie ohne
+  jeden Beitrag der Verlustlandschaft interpretierbare Cluster liefert**. Ein
+  interpretierbarer Cluster ist also für sich genommen kein Befund.
+
+Dazu eine Nomenklatur-Notiz: Das Wort „Atlas" ist in den zugrunde liegenden Arbeiten
+kein Fachbegriff; dort heißt es Suszeptibilitätsmatrix, Antwortmatrix oder Cluster
+Map. Als Eigenprägung ist das in Ordnung, sollte aber als solche gekennzeichnet sein,
+damit ein externer Leser nicht nach einer Methode sucht, die unter diesem Namen nicht
+existiert.
+
+Das Briefing kennzeichnet jede Aussage danach, ob sie an der Primärquelle geprüft
+wurde. Vor dem Zitieren lohnt ein Blick auf die Kennzeichnung.
+
+## 5. Was jetzt zu tun wäre
 
 Die Hypothese ist nicht widerlegt — sie wurde bisher nur an einer Stelle geprüft, an
 der sie gar keine Vorhersage macht. Eine Buchstabendichte im Text sagt nichts
@@ -214,6 +320,19 @@ python examples/05_wasd_zeichenhypothese/experiment_traeger.py \
 
 Er meldet 20 strukturgleiche Kontrollen, fünf verworfene und 176 Messpunkte.
 
+**Viertens: Unsicherheit an den Kennzahlen.** Das gilt über die WASD-Frage hinaus.
+Der Bericht der Timaeus-Spektroskopie (`1130_..._EVALUATION_REPORT.md`) nennt für
+Schritt 98 000 eine Paar-Kosinusähnlichkeit von 0.9198 und für Schritt 99 000 eine
+von 0.9665, daraus einen Zuwachs von +0.0467, und schließt auf eine
+„EventB-spezifische Suszeptibilitätssignatur, schon bei 98k vorhanden". Alle diese
+Zahlen sind Punktschätzer aus 48 Sequenzen, ohne Streuungsangabe und ohne
+Permutationsnull. Ob +0.0467 zwischen zwei benachbarten Checkpoints viel oder nichts
+ist, lässt sich daraus nicht entscheiden — und der ausgewiesene „pair-minus-control
+gap" von 1.7884 ist im Wesentlichen die Summe zweier Kosinuswerte mit
+entgegengesetztem Vorzeichen, also eine Größe, deren Skala ohne Nullverteilung keine
+Bedeutung hat. Ein Bootstrap über die 48 Sequenzen und eine Etikettenpermutation
+kosten wenige Minuten Rechenzeit und würden diese Berichte tragfähig machen.
+
 Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 
 - **Mehrfachvergleiche.** In den bisherigen Läufen werden 19 Fenster × 12 Kennzahlen
@@ -230,7 +349,7 @@ Dazu die drei Punkte, die für jeden Lauf dieser Linie gelten:
 
 ---
 
-## 5. Rückblick: ein unkontrollierter Faktor in der McQuarrie-Linie
+## 6. Rückblick: ein unkontrollierter Faktor in der McQuarrie-Linie
 
 Die vorherige Arbeitslinie verglich Oberflächenvarianten des Namens — Großschreibung,
 Homoglyphen, Tippfehler — und maß je Variante einen Nutzen aus der wahren Ziel-NLL
@@ -245,7 +364,8 @@ Zeichenbild, sondern in der **Tokenisierung**:
 | `Mc0uarrie` | 4 | `ĠMc` `0` `uar` `rie` |
 | `McQuarr1e` | 5 | `ĠMc` `Qu` `arr` `1` `e` |
 
-Daraus folgen zwei Dinge, die im Bericht nicht auftauchen:
+Daraus folgen zwei Dinge, die im Bericht nicht auftauchen — und dazu eine dritte
+Auffälligkeit, die keine Folgerung ist, sondern eine Bitte um Nachsehen:
 
 **Der analysierte Übergang existiert nicht überall.** Die Auswertung dreht sich um
 das Residuum des Übergangs `Qu → ar`. In den Varianten mit O, Null oder X gibt es
@@ -261,19 +381,201 @@ Fünf-Token-Varianten bei 98k und 99k zwar besser ab, aber nicht signifikant
 wenig, um den Faktor auszuschließen oder nachzuweisen. Er bleibt unkontrolliert; ein
 Nachfolgelauf sollte tokenzahlgleiche Varianten gegeneinander stellen.
 
-## 6. Was in dieser Mappe liegt
+**Eine Zahl, die zweimal dasteht.** In der Residuentabelle desselben Berichts steht
+die Spalte `residual_rms_percentile_under_test_names` mit vier Werten:
+
+| Checkpoint | Schicht | `residual_rms` | Perzentil |
+|---|---|---|---|
+| 98 000 | 14 | 1.247435 | **55.675333** |
+| 98 000 | 20 | 1.775950 | 45.466075 |
+| 99 000 | 14 | 1.239061 | 55.421687 |
+| 99 000 | 20 | 1.824206 | **55.675333** |
+
+Zwei Zeilen mit deutlich verschiedenem Residuum — 1.247435 gegen 1.824206, also fast
+fünfzig Prozent Unterschied — tragen ein auf sechs Nachkommastellen identisches
+Perzentil. Das kann stimmen, wenn die beiden Bezugsverteilungen entsprechend
+auseinanderliegen. Wahrscheinlicher ist ein versehentlich übernommener Wert. Das ist
+kein Befund, sondern ein Punkt zum Nachsehen im Auswertungscode.
+
+## 7. Warum die Vorgängerlinie stecken blieb
+
+Zwischen dem McQuarrie-Phänomen und dem WASD-Umschwung liegen zwei Läufe, die
+denselben Ort mit Zeichen-Hypothesen angingen. Beide sind negativ ausgefallen, und
+ihre Zahlen erklären, warum die Linie nicht weiterkam.
+
+**Phonologie, Alphabet, QR-Code (05.09.).** Der Lauf fragt, ob der Übergang `Qu`→`ar`
+eine Aussprache-Umkodierung trägt: klingt es wie *kwor* oder wie *qar*? Von zehn
+Hypothesenflaggen ist **eine** wahr. Die gemessenen Verschiebungen liegen zwischen
+0.0003 und 0.038 — Größenordnungen unterhalb dessen, was die Grundlinienmarge von
+−0.70 bis −0.75 ausmacht. Auffällig nebenbei: die Qualität aller sieben
+Konzeptachsen wird mit exakt 1.0 angegeben, für *Phonologie* ebenso wie für
+*Froschquaken*. Eine Gütezahl, die für jede Achse denselben Bestwert liefert,
+unterscheidet nichts.
+
+**Bitweise Tokenizer-Primitive (06.09.).** Der Lauf sucht eine Zerlegung der
+Übergänge in Byteoperationen — Verschiebungen, Rotationen, ASCII-Nachfolger — und
+wählt je Checkpoint und Schicht die besten vier. Das Ergebnis, in seinen eigenen
+Zahlen:
+
+| | Schicht 14 | Schicht 20 | Schicht 23 |
+|---|---|---|---|
+| Projektionsenergie 98k | 3.27 % | 1.41 % | 2.98 % |
+| Projektionsenergie 99k | 2.73 % | 1.29 % | 2.07 % |
+| Residuum (Anteil) | 98.4–98.6 % | 99.3–99.4 % | 98.5–99.0 % |
+| Auswahl stabil 98k→99k | 2 von 4 | **1 von 4** | 2 von 4 |
+
+Zwei Dinge stehen damit fest. Erstens erklären die Primitive fast nichts: über 98
+Prozent bleiben Residuum. Zweitens hält die Auswahl zwischen zwei **benachbarten**
+Checkpoints nicht — von zwölf Plätzen überleben fünf, und einer davon,
+`drop_last_byte`, steht in allen sechs Auswahlen und unterscheidet deshalb nichts.
+Zehn der vierzehn überhaupt gewählten Primitive kommen genau einmal vor.
+
+Das ist das Muster einer Auswahl, die Rauschen anpasst. Der Lauf zieht daraus selbst
+das richtige Fazit (`strong_bitwise_reduction_supported = false`) — und ausgerechnet
+Schicht 20, um die sich die frühere Linie drehte, ist an beiden Checkpoints die
+schwächste der drei.
+
+Die Linie kam also nicht deshalb nicht weiter, weil die Messungen zu grob waren,
+sondern weil die gesuchte Struktur zwischen zwei Checkpoints nicht wiederkehrt. Das
+ist ein verwertbares Ergebnis, kein Scheitern — und es spricht dafür, den nächsten
+Anlauf nicht an einer feineren Zerlegung desselben Ortes zu versuchen, sondern an
+mehr Orten.
+
+### Was die Vorgeschichte immerhin belegt
+
+Ein Punkt spricht klar für die Messkette: der Reproduktionstest des Laufs
+`20260906_103133_0e2bc9` vergleicht 144 Kennzahlen zwischen zwei Durchgängen und
+findet einen maximalen absoluten Unterschied von **exakt 0.0**. Der Verdacht aus der
+frühen Phase, in den mittleren Schichten stecke ein hardwareabhängiger Effekt, ist
+für diese Messkette damit erledigt: sie liefert bitgleiche Ergebnisse. Was immer die
+Läufe zeigen oder nicht zeigen, es ist kein Rauschen der Ausführung.
+
+Derselbe Lauf zeigt aber auch, wie hartnäckig das Muster ist. Drei voneinander
+unabhängige Zerlegungsversuche am selben Ort — Alphabet-Achsen, bitweise Primitive,
+Nachfolgerelationen — landen alle im selben Bereich:
+
+| Zerlegung | erklärter Anteil | Residuum |
+|---|---|---|
+| bitweise Primitive, k = 4 | 1.3 – 3.3 % | 98.4 – 99.4 % |
+| Nachfolger, nicht-bitweise | 0.13 – 2.3 % | 97.9 – 98.7 % |
+
+Die einzige positive Aussage des Laufs — ein „source-state-conditioned low-rank
+operator" — beruht auf einer Anpassung mit **Rang 32** in einem Raum der Breite
+2 048, die den Kosinus um 0.21 bis 0.31 und den normierten Fehler um 6 bis 9 Prozent
+verbessert. Ob das mehr ist, als eine Rang-32-Anpassung an Rauschen erreicht, sagt
+der Bericht nicht; ein Vergleich gegen zufällige Operatoren gleichen Ranges wäre die
+naheliegende Gegenprobe. Der Lauf selbst schreibt an anderer Stelle die passende
+Warnung hin: „rank-128/512 success is not evidence that the true name mechanism is
+low-rank".
+
+### Zwei Architekturdetails, die man dabei kennen muss
+
+Aus `config.json` von `EleutherAI/pythia-1.4b`, nachgeladen und in
+`daten/PYTHIA14B_ARCHITEKTUR.csv` abgelegt:
+
+- **Vierundzwanzig Blöcke, Breite 2 048, sechzehn Köpfe à 128.** Die Rotation wirkt
+  nur auf einem Viertel der Kopfdimensionen, und Attention und MLP hängen parallel am
+  Residuum (`use_parallel_residual: true`) — was der `ological`-Lauf korrekt prüft.
+  Block 23 ist damit der letzte; eine Einschränkung auf „B19 und B23" trifft das
+  hintere Drittel des Netzes.
+- **Das Vokabular ist gepolstert.** Die Konfiguration nennt 50 304 Zeilen, der
+  Tokenizer kennt 50 277 Einträge, das reine Vokabular 50 254. Die letzten
+  **27 Embedding-Zeilen gehören zu keinem Token**. Wer über Token-IDs rechnet — und
+  eine der ausgewählten Primitiven heißt `id_xor_b14` — arbeitet auf einer Menge, die
+  am oberen Rand aus unbenutzten Zeilen besteht. Eine bitweise Operation auf IDs kann
+  dort hinzeigen, wo nie etwas trainiert wurde.
+
+## 8. Der parallele Lauf am selben Textfenster
+
+Am selben 13. September lief ein zweiter Versuch, `ological_c677b4881415`, der nicht
+Buchstaben zählt, sondern eingreift. Er verdient eine eigene Notiz, weil er
+methodisch deutlich weiter ist als die WASD-Läufe — und weil seine eigenen Zahlen
+etwas anderes sagen als seine Überschrift.
+
+**Was er macht.** Er stört das Wort *Meteorological* im selben Textfenster (Token 165
+bis 168) in acht Varianten: Aufspaltung, Null statt o, Eins statt o, Großbuchstabe,
+Tippfehler, zwei Vertauschungen. Dann verpflanzt er Aktivierungen zwischen den
+Varianten — Schichten 13, 14 und 15, vier Bauteile je Block, zwei Anker, beide
+Richtungen: 672 Transfers, Batchgröße eins, FP32.
+
+**Was gut ist.** Die Kontrollen sitzen. Der Selbstpatch, bei dem eine Aktivierung
+durch sich selbst ersetzt wird, hat einen maximalen Logit-Fehler von exakt `0.0`.
+Die Rekonstruktion des parallelen Residualpfads von Pythia (`resid_out = resid_in +
+attn + mlp`) stimmt ebenfalls auf `0.0`. Und `interpretation.txt` schreibt die
+Grenzen selbst hin, einschließlich des Satzes, ein Transfer identifiziere „causal
+involvement at a selected anchor, not the origin of a logical concept or a full
+circuit".
+
+**Was die Zahlen sagen.** Der eigentliche mechanistische Anspruch hängt am Anker
+`department` — dort sollte sich zeigen, dass die Störung über das Wort hinaus wirkt.
+Genau dort passiert fast nichts:
+
+| Anker | größter absoluter Effekt | nativ |
+|---|---|---|
+| `readout` (letztes Token) | 0.1203 nats | 0.1203 |
+| `department` | 0.0274 nats | 0.0105 |
+
+Der Effekt sitzt also am Endtoken selbst — dessen Residuum den Readout ohnehin
+direkt speist. Das ist beinahe eine Tautologie: wer das letzte Token überschreibt,
+ändert die nächste Vorhersage. Dazu kommt, dass die Schichten 13, 14 und 15
+praktisch gleich reagieren; eine Sonderrolle von Schicht 14, wie sie die frühere
+McQuarrie-Linie vermutete, ist in diesen Zahlen nicht zu sehen.
+
+**Wo es wackelt.** 144 der 672 Zeilen sind als `baseline_gap_too_small` markiert, der
+normalisierte Transfer geht in einzelnen Ziffernpaaren bis 1.47 — mehr als
+vollständige Übertragung, ein Zeichen dafür, dass der Nenner zu klein ist. Ein
+Nullmodell jenseits des trivialen Selbstpatches fehlt, ebenso eine Korrektur über die
+672 Vergleiche. Und die Themenmarker sind, wie der Lauf selbst vermerkt, rein
+lexikalisch: die Marge zwischen Logik- und Wettermarkern ist durchweg stark negativ,
+weil der Text vom Wetter handelt.
+
+**Was die Grundlinien verraten.** Die Verschlechterung der Vorhersage verteilt sich
+so: Aufspalten kostet 0.168 nats, die Null statt des o weitere 0.121, und die
+Identität der Ziffer — 0 gegen 1 — nur etwa 0.04. Der größte Teil des Effekts kommt
+also von der veränderten Tokenisierung, nicht vom eingesetzten Zeichen.
+
+Das passt zur Tokenstruktur, die in `daten/OLOGICAL_TOKENISIERUNG.csv` nachgerechnet
+ist: `original_split`, `zero`, `one` und `capital_o` bilden eine saubere Familie
+`ĠMet | e | ? | rological`, die sich nur an der dritten Position unterscheidet — für
+diese vier gilt die Behauptung des Laufs, es unterscheide sich genau ein Token. Der
+Tippfehler `x_typo` fällt heraus (drei Tokens statt vier), und die Vertauschungen
+stellen das Token `ological` wieder her, das in der Nullvariante gar nicht vorkommt:
+zwischen `zero` und `zero_transpose` stimmt von vier Positionen nur die erste.
+
+**Das dritte Werkzeug.** Das Notebook `State60482_Pythia_Fragilitaet.ipynb` vom selben
+Tag ist ein anderer Versuch: kein Patching, sondern normierte Zufallsstörungen auf
+Q, K und V vor der Rotationskodierung, gegen neun textgleiche Varianten mit
+verschobenen Tokengrenzen. Zeichenketten aus dem Gaming-Bereich kommen dort nicht
+vor. Auch hier sind die Interaktionen winzig — der größte mittlere Absolutwert liegt
+bei 0.00199 nats, alle Ausfallraten bei null, nichts überschreitet die
+Neutralitätsschwellen. Mit vier Richtungsziehungen meldet der Lauf sein Vertrauensband
+selbst als `too_few_paired_direction_seeds`.
+
+**Fazit für diese Linie.** Drei Arbeitslinien messen an einem einzigen Dokument von
+207 Token: McQuarrie an 124 bis 127, *Meteorological* an 165 bis 168, WASD über das
+ganze Fenster verteilt. Keine davon hat bisher einen Effekt gezeigt, der außerhalb
+des Endtokens liegt. Das ist kein Grund aufzuhören — aber es ist ein Grund, den
+nächsten Versuch an mehr als einem Text zu führen.
+
+## 9. Was in dieser Mappe liegt
 
 | Datei | Inhalt |
 |---|---|
 | `zeichensatz_statistik.py` | Buchstabendichte gegen drei Nullmodelle, inklusive des frequenzangepassten |
 | `tokenizer_sonde.py` | prüft vor einem GPU-Lauf, ob eine Zeichenfolge das Netz als Einheit erreicht |
 | `experiment_traeger.py` | der vorregistrierte Nachfolgeversuch: Design, Strukturprüfung, Entscheidungsregel |
+| `pile_nullmodell.py` | das Dokument-Nullmodell aus dem Trainingskorpus, plus die Basisrate von WASD |
+| `PROJEKTSTAND.md` | die Gesamtuntersuchung im Überblick: sieben Abschnitte, drei Arbeitslinien, was am 13.09. anders ist |
+| `METHODEN_BRIEFING.md` | die Literatur- und Methodenrecherche: was die publizierte Suszeptibilitätsmethode misst, Patching-Checkliste, Numerik, Basisraten, Quellen |
 | `daten/` | die Originalausgaben der drei Läufe, damit die Nachrechnung nicht von Drive abhängt |
 | `tests/test_zeichensatz_statistik.py` | Kalibrierung gegen gepflanzte Wahrheiten: neutraler Text darf nicht ausschlagen, gepflanzte An- und Abreicherung muss gefunden werden |
 | `tests/test_nullmodell_verzerrung.py` | der Beleg für die Verzerrung, direkt an den Messdaten |
 | `tests/test_zyklus_und_periode.py` | was die Zyklus- und Positionsanalyse wirklich zeigt |
 | `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der früheren McQuarrie-Linie |
 | `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
+| `tests/test_pile_nullmodell.py` | Rechenlogik plus Konsistenz gegen den gespeicherten Korpuslauf |
+| `tests/test_ological_struktur.py` | die Tokenstruktur der Störungen im parallelen Lauf |
+| `tests/test_primitivauswahl.py` | warum die Vorgängerlinie stecken blieb, an ihren eigenen Zahlen |
 
 Nachrechnen:
 
@@ -289,7 +591,7 @@ python examples/05_wasd_zeichenhypothese/tokenizer_sonde.py \
 
 ---
 
-## 7. Grenzen dieser Mappe
+## 10. Grenzen dieser Mappe
 
 - Alles hier ist Text- und Tokenizer-Statistik. Es wird **keine** Aussage darüber
   getroffen, was Pythia in den mittleren Schichten tut; dafür braucht es einen

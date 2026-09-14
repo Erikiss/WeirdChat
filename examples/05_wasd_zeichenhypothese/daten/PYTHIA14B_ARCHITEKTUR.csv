@@ -1,0 +1,15 @@
+feld,wert,quelle
+architecture,GPTNeoXForCausalLM,config.json
+num_hidden_layers,24,config.json
+hidden_size,2048,config.json
+num_attention_heads,16,config.json
+head_dim,128,abgeleitet aus hidden_size/num_attention_heads
+intermediate_size,8192,config.json
+rotary_pct,0.25,config.json
+rotary_emb_base,10000,config.json
+use_parallel_residual,true,config.json
+max_position_embeddings,2048,config.json
+vocab_size_config,50304,config.json
+vocab_size_tokenizer,50277,tokenizer.json inklusive Sondertoken
+vocab_size_model_vocab,50254,tokenizer.json Feld model.vocab
+unbelegte_embedding_zeilen,27,50304 minus 50277
