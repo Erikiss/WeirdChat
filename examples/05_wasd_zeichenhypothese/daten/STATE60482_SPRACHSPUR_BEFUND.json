@@ -65,23 +65,56 @@
     ]
   },
   "vorhersagetiefe": {
-    "definition": "kleinste Schicht, ab der das argmax des Logit Lens bis zum Ende stabil ist",
+    "definition": "kleinste Schicht L, ab der das argmax des Logit Lens bis zum Ende stabil bleibt. Der Lens ist exakt aequivalent dazu, die Bloecke L..23 durch die Identitaet zu ersetzen - es ist Abbruchtiefe, nicht Tempo.",
+    "_korrektur": "Die erste Fassung hat hidden_states[-1] doppelt normiert: in transformers 5 ist dieses Element BEREITS durch die finale Layer-Norm gelaufen (nachgeprueft: max|W(hs[-1]) - logits| = 0.0, mit zusaetzlicher LN dagegen 6.60). Der Fehler betraf nur die letzte Stufe und verschob die Mittel um 0.12 bzw. 0.14 Schichten. Alte Werte: en 19.11, de 20.62.",
     "mittel": {
-      "en": 19.0873786407767,
-      "de": 20.65015479876161
+      "en": 18.99033816425121,
+      "de": 20.47530864197531
     },
-    "roh_de_minus_en": 1.56,
-    "nur_wortanfaenge_de_minus_en": 3.18,
-    "haeufigkeitsabgeglichen_de_minus_en": 1.34,
+    "median": {
+      "en": 22.0,
+      "de": 23.0
+    },
+    "anteil_am_maximum_24": {
+      "en": 0.3285024154589372,
+      "de": 0.4567901234567901
+    },
+    "_saettigung": "Ein Drittel bis knapp die Haelfte aller Positionen liegt am Anschlag. Ein Mittelwertvergleich vergleicht damit zensierte Werte.",
+    "L50_relativ": {
+      "en": 6.782608695652174,
+      "de": 10.305555555555555
+    },
+    "L90_relativ": {
+      "en": 19.63768115942029,
+      "de": 21.74074074074074
+    },
+    "_L50": "kleinste Schicht, ab der KL(Ende||Lens) unter die Haelfte des Anfangswerts faellt und dort bleibt. Nicht zensiert, echter Dynamikbereich - die bessere Messgroesse. Eine ABSOLUTE KL-Schwelle ist unbrauchbar: bei 0.1 nats liegen ueber 85 Prozent aller Positionen am Maximum.",
+    "de_minus_en": {
+      "roh": 1.54,
+      "nur_wortanfaenge": 3.16,
+      "haeufigkeitsabgeglichen": 1.32,
+      "dezile": [
+        -1.0,
+        1.1,
+        1.9,
+        3.6,
+        3.3,
+        1.6,
+        0.3,
+        1.3,
+        -1.8,
+        0.9
+      ]
+    },
     "r_tiefe_gegen_log_token_id": {
-      "en": 0.312,
-      "de": 0.378
+      "en": 0.319,
+      "de": 0.391
     },
     "r_tiefe_gegen_ueberraschung": {
-      "en": 0.242,
-      "de": 0.294
+      "en": 0.235,
+      "de": 0.278
     },
-    "verworfene_fassung": "KL<0.1 - 90 Prozent aller Positionen auf dem Maximum 24, keine Streuung, misst nichts."
+    "_urteil": "Als Mass fuer 'beschleunigten internen Compute' untauglich. Sie folgt ueberwiegend der Seltenheit und Schwierigkeit des Zieltokens, das Dezilmuster wechselt zweimal das Vorzeichen, und begrifflich gibt es keinen variablen Durchsatz: das Modell rechnet fuer jedes Token alle 24 Bloecke."
   },
   "ueberraschung": {
     "mittel": {
