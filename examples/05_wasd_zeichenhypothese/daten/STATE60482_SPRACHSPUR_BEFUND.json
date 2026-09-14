@@ -283,5 +283,59 @@
       }
     },
     "_befund": "Die 95-Prozent-Trennung innerhalb 'ie' ist real, aber sie ist Wortart, nicht Vokal. Der Transfertest scheitert einseitig: field wandert korrekt zu /i:/, tried wandert NICHT zu /aI/ sondern ebenfalls zu /i:/. Laut sagt tried->ride, Schreibung sagt tried->need (beides Doppelvokal). Die Daten folgen der Schreibung. Eine von der Schreibung abgeloeste Kodierung der Vokallaenge ist in diesem Modell nicht nachweisbar."
+  },
+  "uebergangszone_mlp_attn": {
+    "_design": "Bloecke 10-18, je Block einmal MLP-Beitrag und einmal Attention-Beitrag genullt (paralleles Residuum). rie: 30 Namenskontexte. Sprache: deutscher Text, 324 Positionen.",
+    "rie": {
+      "parametrisch_mlp_anteil": {
+        "10-14": 0.54,
+        "15-18": 0.68,
+        "block15": 0.73,
+        "block18": 0.76,
+        "summe": 0.61
+      },
+      "kontextuell_mlp_anteil": {
+        "10-14": 0.26,
+        "15-18": 0.59,
+        "summe": 0.34
+      },
+      "_hinweis": "Kontextuell in 15-18 sind die Absolutwerte winzig (0.02-0.05); der Anteil dort ist Rauschen.",
+      "_befund": "Parametrischer Abruf ist MLP-getragen und wird es ab Block 15 deutlich (49 Prozent bei 14, 73 bei 15). Kontextuelles Kopieren ist in 10-14 Attention-getragen (74 Prozent). Die Kante bei 14/15 ist der Punkt, an dem fuer den Abruf aus den Gewichten die MLP die Oberhand gewinnt."
+    },
+    "sprache": {
+      "mittel_abs_delta": {
+        "mlp": 0.384,
+        "attn": 0.314
+      },
+      "delta_mittel_vorzeichen": {
+        "mlp_je_block": [
+          0.024,
+          -0.063,
+          0.08,
+          0.075,
+          -0.165,
+          0.236,
+          0.101,
+          0.146,
+          0.189
+        ],
+        "attn_je_block": [
+          -0.09,
+          -0.464,
+          -0.023,
+          -0.269,
+          -0.049,
+          -0.083,
+          -0.012,
+          -0.345,
+          0.049
+        ],
+        "mlp_positiv_von_9": 7,
+        "attn_negativ_von_9": 8
+      },
+      "_befund": "Nullt man die Attention, driftet das Signal nach ENGLISCH (8 von 9 Bloecken negativ). Nullt man die MLP, driftet es nach DEUTSCH (7 von 9 positiv). Also: die Attention traegt die Kontextsprache Deutsch, die MLP traegt den englischen Prior. An englischen Eigennamen (Christopher, Tom) schiebt die MLP am staerksten nach Englisch - sie erkennt das Wort; die Erholung zurueck ins Deutsche nach dem Namen (Position 198) traegt die Attention.",
+      "_einschraenkung": "Betraege 0.02 bis 0.46 nats im Mittel - das Vorzeichenmuster ist konsistent, die Effekte sind moderat. Ein Text."
+    },
+    "_gemeinsames_bild": "MLP = was die Gewichte wissen (der Name, die Sprache eines Wortes). Attention = was der Kontext sagt (kopiere das, wir sind im Deutschen). Block 15 ist die Stelle, an der fuer den Namensabruf die MLP uebernimmt."
   }
 }
