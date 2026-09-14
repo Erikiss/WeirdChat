@@ -1,341 +1,521 @@
 {
-  "_art": "DESKRIPTIV. Je ein Vorwaertslauf, pythia-1.4b @ step98000, float32, CPU. Keine Entscheidungsregel, kein Urteil.",
-  "sprachsonde": "logsumexp der Masse auf 31 deutschen minus 31 englischen Funktionswoertern, alle Einzeltoken.",
-  "sprachverfolgung": {
-    "signal_mittel": {
-      "en": -6.310602049225742,
-      "de": 1.783055586711541
-    },
-    "anteil_deutsch_vorn": {
-      "en": 0.019417475728155338,
-      "de": 0.8823529411764706
-    },
-    "einschub_The_position": 113,
-    "einschub_The_verlauf": {
-      "davor_mit": 3.355,
-      "The": -0.597,
-      "Hollywood": -3.127,
-      "Reporter": 1.603,
-      "im": 1.378
-    },
-    "englische_namenspassage": {
-      "mittel": 0.408,
-      "uebriger_text": 1.849,
-      "differenz": -1.441
-    }
+ "_art": "DESKRIPTIV. Je ein Vorwaertslauf, pythia-1.4b @ step98000, float32, CPU. Keine Entscheidungsregel, kein Urteil.",
+ "sprachsonde": "logsumexp der Masse auf 31 deutschen minus 31 englischen Funktionswoertern, alle Einzeltoken.",
+ "sprachverfolgung": {
+  "signal_mittel": {
+   "en": -6.310602049225742,
+   "de": 1.783055586711541
   },
-  "tokenidentischer_vergleich_mcquarrie": {
-    "tokens": [
-      "ĠMc",
-      "Qu",
-      "ar",
-      "rie"
-    ],
-    "ids": [
-      3044,
-      3864,
-      274,
-      6595
-    ],
-    "en_position": 124,
-    "de_position": 194,
-    "en_signal": [
-      -2.236,
-      -2.178,
-      -5.444,
-      -11.636
-    ],
-    "de_signal": [
-      -2.628,
-      -1.428,
-      -3.173,
-      1.321
-    ],
-    "en_tiefe": [
-      23,
-      19,
-      22,
-      24
-    ],
-    "de_tiefe": [
-      23,
-      19,
-      24,
-      11
-    ]
+  "anteil_deutsch_vorn": {
+   "en": 0.019417475728155338,
+   "de": 0.8823529411764706
   },
-  "vorhersagetiefe": {
-    "definition": "kleinste Schicht L, ab der das argmax des Logit Lens bis zum Ende stabil bleibt. Der Lens ist exakt aequivalent dazu, die Bloecke L..23 durch die Identitaet zu ersetzen - es ist Abbruchtiefe, nicht Tempo.",
-    "_korrektur": "Die erste Fassung hat hidden_states[-1] doppelt normiert: in transformers 5 ist dieses Element BEREITS durch die finale Layer-Norm gelaufen (nachgeprueft: max|W(hs[-1]) - logits| = 0.0, mit zusaetzlicher LN dagegen 6.60). Der Fehler betraf nur die letzte Stufe und verschob die Mittel um 0.12 bzw. 0.14 Schichten. Alte Werte: en 19.11, de 20.62.",
-    "mittel": {
-      "en": 18.99033816425121,
-      "de": 20.47530864197531
-    },
-    "median": {
-      "en": 22.0,
-      "de": 23.0
-    },
-    "anteil_am_maximum_24": {
-      "en": 0.3285024154589372,
-      "de": 0.4567901234567901
-    },
-    "_saettigung": "Ein Drittel bis knapp die Haelfte aller Positionen liegt am Anschlag. Ein Mittelwertvergleich vergleicht damit zensierte Werte.",
-    "L50_relativ": {
-      "en": 6.782608695652174,
-      "de": 10.305555555555555
-    },
-    "L90_relativ": {
-      "en": 19.63768115942029,
-      "de": 21.74074074074074
-    },
-    "_L50": "kleinste Schicht, ab der KL(Ende||Lens) unter die Haelfte des Anfangswerts faellt und dort bleibt. Nicht zensiert, echter Dynamikbereich - die bessere Messgroesse. Eine ABSOLUTE KL-Schwelle ist unbrauchbar: bei 0.1 nats liegen ueber 85 Prozent aller Positionen am Maximum.",
-    "de_minus_en": {
-      "roh": 1.54,
-      "nur_wortanfaenge": 3.16,
-      "haeufigkeitsabgeglichen": 1.32,
-      "dezile": [
-        -1.0,
-        1.1,
-        1.9,
-        3.6,
-        3.3,
-        1.6,
-        0.3,
-        1.3,
-        -1.8,
-        0.9
-      ]
-    },
-    "r_tiefe_gegen_log_token_id": {
-      "en": 0.319,
-      "de": 0.391
-    },
-    "r_tiefe_gegen_ueberraschung": {
-      "en": 0.235,
-      "de": 0.278
-    },
-    "_urteil": "Als Mass fuer 'beschleunigten internen Compute' untauglich. Sie folgt ueberwiegend der Seltenheit und Schwierigkeit des Zieltokens, das Dezilmuster wechselt zweimal das Vorzeichen, und begrifflich gibt es keinen variablen Durchsatz: das Modell rechnet fuer jedes Token alle 24 Bloecke."
+  "einschub_The_position": 113,
+  "einschub_The_verlauf": {
+   "davor_mit": 3.355,
+   "The": -0.597,
+   "Hollywood": -3.127,
+   "Reporter": 1.603,
+   "im": 1.378
   },
-  "ueberraschung": {
-    "mittel": {
-      "en": 2.9152238459150572,
-      "de": 2.7121660330621107
-    },
-    "perplexitaet": {
-      "en": 18.45294255628269,
-      "de": 15.06186470442966
-    },
-    "anteil_wortanfaenge": {
-      "en": 0.7233009708737864,
-      "de": 0.47058823529411764
-    },
-    "warnung": "Roh ist Deutsch LEICHTER (Perplexitaet 15.1 gegen 18.5). Das ist ein Fragmentierungsartefakt: nur 47 Prozent der deutschen Token sind Wortanfaenge gegen 72 Prozent im Englischen. Nur an Wortanfaengen verglichen dreht sich das Vorzeichen: Deutsch +0.875 nats schwerer."
-  },
-  "morse_braille": {
-    "morse_token_je_zeichen": 0.45,
-    "morse_vokabeleintraege_aus_punkt_strich": 72,
-    "braille_token_je_zeichen": 3.0,
-    "braille_vokabeleintraege": 0,
-    "bemerkung": "Braille hat KEINEN einzigen Vokabeleintrag; jedes Zeichen zerfaellt in seine drei UTF-8-Bytes. Kein Traeger, an dem ein Effekt ansetzen koennte - dieselbe Lage wie bei WASD. Morse dagegen hat Traeger."
-  },
-  "blockablation": {
-    "verfahren": "jeden Block einzeln durch die Identitaet ersetzen, Rest unveraendert, und den Anteil der gekippten finalen Top-1-Token messen",
-    "bloecke_2_bis_22": {
-      "en": [
-        0.10628019273281097,
-        0.32367148995399475
-      ],
-      "de": [
-        0.1975308656692505,
-        0.3888888955116272
-      ]
-    },
-    "nach_der_abbruchtiefe": {
-      "en_bloecke_18_22": 0.142,
-      "de_bloecke_20_22": 0.219
-    },
-    "nach_L50": {
-      "en": 0.152,
-      "de": 0.236
-    },
-    "block23": {
-      "en": 0.3285024166107178,
-      "de": 0.45679011940956116
-    },
-    "_urteil": "Kein Block ist im Leerlauf. Selbst die Bloecke NACH der scheinbaren Entscheidung kippen ein Fuenftel aller Top-1-Token. Die Vorstellung 'entschieden, danach beschleunigt durch' ist damit direkt widerlegt - nicht nur begrifflich, sondern gemessen.",
-    "_nebenbefund": "Die KL-Kosten sind winzig (0.08 bis 0.13 nats) waehrend 10 bis 28 Prozent der Top-1 kippen. Diese Bloecke verschieben die Verteilung kaum, aber oft ueber die argmax-Grenze: Feinarbeit an knappen Entscheidungen. Deutsch ist an JEDEM Block staerker betroffen als Englisch."
-  },
-  "wiederholungstest_58938": {
-    "_frage": "Folgt ein Effekt der Position oder den Token? MVarrieur steht viermal, gleiche Tokenfolge.",
-    "positionen_rie": [
-      33,
-      136,
-      150,
-      211
-    ],
-    "ueberraschung_rie": [
-      8.6799,
-      0.0059,
-      0.0001,
-      0.0006
-    ],
-    "tiefe_nach_rie": [
-      8,
-      15,
-      16,
-      16
-    ],
-    "L50_nach_rie": [
-      8,
-      13,
-      13,
-      11
-    ],
-    "_befund": "Die vier unterscheiden sich - aber nach REIHENFOLGE, nicht nach Position. Das erste Vorkommen ist teuer (8.68 nats), die drei Wiederholungen sind praktisch frei (0.006, 0.000, 0.001). Positionen 136, 150 und 211 sind ununterscheidbar. Das ist Induktion - Kopieren aus dem Kontext -, kein Positionsattraktor.",
-    "_kontrast_mcquarrie": "In 60482 kostet 'rie' in McQuarrie beim EINZIGEN Vorkommen 0.005 nats. Der Name ist aus dem Training bekannt (Christopher McQuarrie): parametrisches Gedaechtnis. MVarrieur ist neu und wird im Kontext gelernt. Derselbe Token, zwei voellig verschiedene Mechanismen."
-  },
-  "rie_bekannt_gegen_unbekannt": {
-    "_design": "4 bekannte (McQuarrie, Barrie, Currie, Brie) und 6 erfundene Namen (Celrie, Winrie, Pulrie, Dixrie, Hansrie, Matrie), alle mit rie=6595 am Ende, je zweimal in 3 Vorlagen. 24 Blockablationen je Kontext.",
-    "ueberraschung_rie_1_vorkommen": {
-      "bekannt": 3.55,
-      "unbekannt": 12.84
-    },
-    "ueberraschung_rie_2_vorkommen": {
-      "bekannt": 0.01,
-      "unbekannt": 0.11
-    },
-    "L50_2_vorkommen": {
-      "bekannt": 7.2,
-      "unbekannt": 15.1
-    },
-    "blockprofil_korrelation": {
-      "mit_block_0_und_23": 0.98,
-      "nur_bloecke_1_22": 0.5207352063887033
-    },
-    "anteile_bloecke_1_22": {
-      "param": {
-        "2-3": 0.23098770638528635,
-        "4-9": 0.16715194739200925,
-        "10-15": 0.15646802939546392,
-        "16-22": 0.3230411985034515
-      },
-      "kontext": {
-        "2-3": 0.04852004104793983,
-        "4-9": 0.24905749149688852,
-        "10-15": 0.08879922072351293,
-        "16-22": 0.12228466201938756
-      }
-    },
-    "empfindlichste_bloecke": {
-      "parametrisch": [
-        1,
-        2,
-        3,
-        18
-      ],
-      "kontextuell": [
-        1,
-        4,
-        8,
-        22
-      ]
-    },
-    "bloecke_13_21_mittel": {
-      "kontextuell": 0.052,
-      "parametrisch": 0.358
-    },
-    "_befund": "Dissoziation. Kontextuelles Kopieren (unbekannter Name, 2. Vorkommen) haengt an den Bloecken 4-9 - dem bekannten Induktionsbereich - und fast gar nicht an 13-21. Parametrischer Abruf (bekannter Name, 1. Vorkommen) hat zwei Orte: frueh (2-3) UND spaet (16-22). Die spaeten Bloecke, die laut Ablation Feinarbeit leisten, arbeiten fuer den Abruf aus den Gewichten, nicht fuers Kopieren. Die Korrelation 0.98 war ein Artefakt der Bloecke 0 und 23."
-  },
-  "rie_laut_oder_schreibung": {
-    "_design": "49 Einzeltoken-Woerter, 5 Gruppen gekreuzt nach Laut (/i:/, /aI/, /I/) und Schreibung (ie, i, i_e, ee). Residualstrom je Schicht, 3 neutrale Vorlagen gemittelt.",
-    "innerhalb_ie_trennung_/i:/_vs_/aI/": {
-      "treffer": 0.95,
-      "null_p95": 0.7,
-      "p": 0.0,
-      "ab_schicht": 6
-    },
-    "konfundierung_pie_die_lie": {
-      "pie": "zu den /i:/-Nomen",
-      "die": "zu den /aI/-Praeteritum",
-      "lie": "zu den /aI/-Praeteritum",
-      "_lesart": "pie ist Nomen, die und lie sind Verben - das Muster folgt der WORTART, nicht dem Laut."
-    },
-    "transfer_ohne_ie_trainiert": {
-      "field_gruppe_zu_/i:/": "60-100 Prozent, steigend",
-      "tried_gruppe_zu_/aI/": "20-50 Prozent, unter Zufall"
-    },
-    "transfer_gegenrichtung": {
-      "6": {
-        "need_zu_field": 0.9,
-        "ride_zu_tried": 0.0
-      },
-      "12": {
-        "need_zu_field": 1.0,
-        "ride_zu_tried": 0.0
-      },
-      "18": {
-        "need_zu_field": 1.0,
-        "ride_zu_tried": 0.0
-      },
-      "22": {
-        "need_zu_field": 0.9,
-        "ride_zu_tried": 0.1111111111111111
-      }
-    },
-    "_befund": "Die 95-Prozent-Trennung innerhalb 'ie' ist real, aber sie ist Wortart, nicht Vokal. Der Transfertest scheitert einseitig: field wandert korrekt zu /i:/, tried wandert NICHT zu /aI/ sondern ebenfalls zu /i:/. Laut sagt tried->ride, Schreibung sagt tried->need (beides Doppelvokal). Die Daten folgen der Schreibung. Eine von der Schreibung abgeloeste Kodierung der Vokallaenge ist in diesem Modell nicht nachweisbar."
-  },
-  "uebergangszone_mlp_attn": {
-    "_design": "Bloecke 10-18, je Block einmal MLP-Beitrag und einmal Attention-Beitrag genullt (paralleles Residuum). rie: 30 Namenskontexte. Sprache: deutscher Text, 324 Positionen.",
-    "rie": {
-      "parametrisch_mlp_anteil": {
-        "10-14": 0.54,
-        "15-18": 0.68,
-        "block15": 0.73,
-        "block18": 0.76,
-        "summe": 0.61
-      },
-      "kontextuell_mlp_anteil": {
-        "10-14": 0.26,
-        "15-18": 0.59,
-        "summe": 0.34
-      },
-      "_hinweis": "Kontextuell in 15-18 sind die Absolutwerte winzig (0.02-0.05); der Anteil dort ist Rauschen.",
-      "_befund": "Parametrischer Abruf ist MLP-getragen und wird es ab Block 15 deutlich (49 Prozent bei 14, 73 bei 15). Kontextuelles Kopieren ist in 10-14 Attention-getragen (74 Prozent). Die Kante bei 14/15 ist der Punkt, an dem fuer den Abruf aus den Gewichten die MLP die Oberhand gewinnt."
-    },
-    "sprache": {
-      "mittel_abs_delta": {
-        "mlp": 0.384,
-        "attn": 0.314
-      },
-      "delta_mittel_vorzeichen": {
-        "mlp_je_block": [
-          0.024,
-          -0.063,
-          0.08,
-          0.075,
-          -0.165,
-          0.236,
-          0.101,
-          0.146,
-          0.189
-        ],
-        "attn_je_block": [
-          -0.09,
-          -0.464,
-          -0.023,
-          -0.269,
-          -0.049,
-          -0.083,
-          -0.012,
-          -0.345,
-          0.049
-        ],
-        "mlp_positiv_von_9": 7,
-        "attn_negativ_von_9": 8
-      },
-      "_befund": "Nullt man die Attention, driftet das Signal nach ENGLISCH (8 von 9 Bloecken negativ). Nullt man die MLP, driftet es nach DEUTSCH (7 von 9 positiv). Also: die Attention traegt die Kontextsprache Deutsch, die MLP traegt den englischen Prior. An englischen Eigennamen (Christopher, Tom) schiebt die MLP am staerksten nach Englisch - sie erkennt das Wort; die Erholung zurueck ins Deutsche nach dem Namen (Position 198) traegt die Attention.",
-      "_einschraenkung": "Betraege 0.02 bis 0.46 nats im Mittel - das Vorzeichenmuster ist konsistent, die Effekte sind moderat. Ein Text."
-    },
-    "_gemeinsames_bild": "MLP = was die Gewichte wissen (der Name, die Sprache eines Wortes). Attention = was der Kontext sagt (kopiere das, wir sind im Deutschen). Block 15 ist die Stelle, an der fuer den Namensabruf die MLP uebernimmt."
+  "englische_namenspassage": {
+   "mittel": 0.408,
+   "uebriger_text": 1.849,
+   "differenz": -1.441
   }
+ },
+ "tokenidentischer_vergleich_mcquarrie": {
+  "tokens": [
+   "ĠMc",
+   "Qu",
+   "ar",
+   "rie"
+  ],
+  "ids": [
+   3044,
+   3864,
+   274,
+   6595
+  ],
+  "en_position": 124,
+  "de_position": 194,
+  "en_signal": [
+   -2.236,
+   -2.178,
+   -5.444,
+   -11.636
+  ],
+  "de_signal": [
+   -2.628,
+   -1.428,
+   -3.173,
+   1.321
+  ],
+  "en_tiefe": [
+   23,
+   19,
+   22,
+   24
+  ],
+  "de_tiefe": [
+   23,
+   19,
+   24,
+   11
+  ]
+ },
+ "vorhersagetiefe": {
+  "definition": "kleinste Schicht L, ab der das argmax des Logit Lens bis zum Ende stabil bleibt. Der Lens ist exakt aequivalent dazu, die Bloecke L..23 durch die Identitaet zu ersetzen - es ist Abbruchtiefe, nicht Tempo.",
+  "_korrektur": "Die erste Fassung hat hidden_states[-1] doppelt normiert: in transformers 5 ist dieses Element BEREITS durch die finale Layer-Norm gelaufen (nachgeprueft: max|W(hs[-1]) - logits| = 0.0, mit zusaetzlicher LN dagegen 6.60). Der Fehler betraf nur die letzte Stufe und verschob die Mittel um 0.12 bzw. 0.14 Schichten. Alte Werte: en 19.11, de 20.62.",
+  "mittel": {
+   "en": 18.99033816425121,
+   "de": 20.47530864197531
+  },
+  "median": {
+   "en": 22.0,
+   "de": 23.0
+  },
+  "anteil_am_maximum_24": {
+   "en": 0.3285024154589372,
+   "de": 0.4567901234567901
+  },
+  "_saettigung": "Ein Drittel bis knapp die Haelfte aller Positionen liegt am Anschlag. Ein Mittelwertvergleich vergleicht damit zensierte Werte.",
+  "L50_relativ": {
+   "en": 6.782608695652174,
+   "de": 10.305555555555555
+  },
+  "L90_relativ": {
+   "en": 19.63768115942029,
+   "de": 21.74074074074074
+  },
+  "_L50": "kleinste Schicht, ab der KL(Ende||Lens) unter die Haelfte des Anfangswerts faellt und dort bleibt. Nicht zensiert, echter Dynamikbereich - die bessere Messgroesse. Eine ABSOLUTE KL-Schwelle ist unbrauchbar: bei 0.1 nats liegen ueber 85 Prozent aller Positionen am Maximum.",
+  "de_minus_en": {
+   "roh": 1.54,
+   "nur_wortanfaenge": 3.16,
+   "haeufigkeitsabgeglichen": 1.32,
+   "dezile": [
+    -1.0,
+    1.1,
+    1.9,
+    3.6,
+    3.3,
+    1.6,
+    0.3,
+    1.3,
+    -1.8,
+    0.9
+   ]
+  },
+  "r_tiefe_gegen_log_token_id": {
+   "en": 0.319,
+   "de": 0.391
+  },
+  "r_tiefe_gegen_ueberraschung": {
+   "en": 0.235,
+   "de": 0.278
+  },
+  "_urteil": "Als Mass fuer 'beschleunigten internen Compute' untauglich. Sie folgt ueberwiegend der Seltenheit und Schwierigkeit des Zieltokens, das Dezilmuster wechselt zweimal das Vorzeichen, und begrifflich gibt es keinen variablen Durchsatz: das Modell rechnet fuer jedes Token alle 24 Bloecke."
+ },
+ "ueberraschung": {
+  "mittel": {
+   "en": 2.9152238459150572,
+   "de": 2.7121660330621107
+  },
+  "perplexitaet": {
+   "en": 18.45294255628269,
+   "de": 15.06186470442966
+  },
+  "anteil_wortanfaenge": {
+   "en": 0.7233009708737864,
+   "de": 0.47058823529411764
+  },
+  "warnung": "Roh ist Deutsch LEICHTER (Perplexitaet 15.1 gegen 18.5). Das ist ein Fragmentierungsartefakt: nur 47 Prozent der deutschen Token sind Wortanfaenge gegen 72 Prozent im Englischen. Nur an Wortanfaengen verglichen dreht sich das Vorzeichen: Deutsch +0.875 nats schwerer."
+ },
+ "morse_braille": {
+  "morse_token_je_zeichen": 0.45,
+  "morse_vokabeleintraege_aus_punkt_strich": 72,
+  "braille_token_je_zeichen": 3.0,
+  "braille_vokabeleintraege": 0,
+  "bemerkung": "Braille hat KEINEN einzigen Vokabeleintrag; jedes Zeichen zerfaellt in seine drei UTF-8-Bytes. Kein Traeger, an dem ein Effekt ansetzen koennte - dieselbe Lage wie bei WASD. Morse dagegen hat Traeger."
+ },
+ "blockablation": {
+  "verfahren": "jeden Block einzeln durch die Identitaet ersetzen, Rest unveraendert, und den Anteil der gekippten finalen Top-1-Token messen",
+  "bloecke_2_bis_22": {
+   "en": [
+    0.10628019273281097,
+    0.32367148995399475
+   ],
+   "de": [
+    0.1975308656692505,
+    0.3888888955116272
+   ]
+  },
+  "nach_der_abbruchtiefe": {
+   "en_bloecke_18_22": 0.142,
+   "de_bloecke_20_22": 0.219
+  },
+  "nach_L50": {
+   "en": 0.152,
+   "de": 0.236
+  },
+  "block23": {
+   "en": 0.3285024166107178,
+   "de": 0.45679011940956116
+  },
+  "_urteil": "Kein Block ist im Leerlauf. Selbst die Bloecke NACH der scheinbaren Entscheidung kippen ein Fuenftel aller Top-1-Token. Die Vorstellung 'entschieden, danach beschleunigt durch' ist damit direkt widerlegt - nicht nur begrifflich, sondern gemessen.",
+  "_nebenbefund": "Die KL-Kosten sind winzig (0.08 bis 0.13 nats) waehrend 10 bis 28 Prozent der Top-1 kippen. Diese Bloecke verschieben die Verteilung kaum, aber oft ueber die argmax-Grenze: Feinarbeit an knappen Entscheidungen. Deutsch ist an JEDEM Block staerker betroffen als Englisch."
+ },
+ "wiederholungstest_58938": {
+  "_frage": "Folgt ein Effekt der Position oder den Token? MVarrieur steht viermal, gleiche Tokenfolge.",
+  "positionen_rie": [
+   33,
+   136,
+   150,
+   211
+  ],
+  "ueberraschung_rie": [
+   8.6799,
+   0.0059,
+   0.0001,
+   0.0006
+  ],
+  "tiefe_nach_rie": [
+   8,
+   15,
+   16,
+   16
+  ],
+  "L50_nach_rie": [
+   8,
+   13,
+   13,
+   11
+  ],
+  "_befund": "Die vier unterscheiden sich - aber nach REIHENFOLGE, nicht nach Position. Das erste Vorkommen ist teuer (8.68 nats), die drei Wiederholungen sind praktisch frei (0.006, 0.000, 0.001). Positionen 136, 150 und 211 sind ununterscheidbar. Das ist Induktion - Kopieren aus dem Kontext -, kein Positionsattraktor.",
+  "_kontrast_mcquarrie": "In 60482 kostet 'rie' in McQuarrie beim EINZIGEN Vorkommen 0.005 nats. Der Name ist aus dem Training bekannt (Christopher McQuarrie): parametrisches Gedaechtnis. MVarrieur ist neu und wird im Kontext gelernt. Derselbe Token, zwei voellig verschiedene Mechanismen."
+ },
+ "rie_bekannt_gegen_unbekannt": {
+  "_design": "4 bekannte (McQuarrie, Barrie, Currie, Brie) und 6 erfundene Namen (Celrie, Winrie, Pulrie, Dixrie, Hansrie, Matrie), alle mit rie=6595 am Ende, je zweimal in 3 Vorlagen. 24 Blockablationen je Kontext.",
+  "ueberraschung_rie_1_vorkommen": {
+   "bekannt": 3.55,
+   "unbekannt": 12.84
+  },
+  "ueberraschung_rie_2_vorkommen": {
+   "bekannt": 0.01,
+   "unbekannt": 0.11
+  },
+  "L50_2_vorkommen": {
+   "bekannt": 7.2,
+   "unbekannt": 15.1
+  },
+  "blockprofil_korrelation": {
+   "mit_block_0_und_23": 0.98,
+   "nur_bloecke_1_22": 0.5207352063887033
+  },
+  "anteile_bloecke_1_22": {
+   "param": {
+    "2-3": 0.23098770638528635,
+    "4-9": 0.16715194739200925,
+    "10-15": 0.15646802939546392,
+    "16-22": 0.3230411985034515
+   },
+   "kontext": {
+    "2-3": 0.04852004104793983,
+    "4-9": 0.24905749149688852,
+    "10-15": 0.08879922072351293,
+    "16-22": 0.12228466201938756
+   }
+  },
+  "empfindlichste_bloecke": {
+   "parametrisch": [
+    1,
+    2,
+    3,
+    18
+   ],
+   "kontextuell": [
+    1,
+    4,
+    8,
+    22
+   ]
+  },
+  "bloecke_13_21_mittel": {
+   "kontextuell": 0.052,
+   "parametrisch": 0.358
+  },
+  "_befund": "Dissoziation. Kontextuelles Kopieren (unbekannter Name, 2. Vorkommen) haengt an den Bloecken 4-9 - dem bekannten Induktionsbereich - und fast gar nicht an 13-21. Parametrischer Abruf (bekannter Name, 1. Vorkommen) hat zwei Orte: frueh (2-3) UND spaet (16-22). Die spaeten Bloecke, die laut Ablation Feinarbeit leisten, arbeiten fuer den Abruf aus den Gewichten, nicht fuers Kopieren. Die Korrelation 0.98 war ein Artefakt der Bloecke 0 und 23."
+ },
+ "rie_laut_oder_schreibung": {
+  "_design": "49 Einzeltoken-Woerter, 5 Gruppen gekreuzt nach Laut (/i:/, /aI/, /I/) und Schreibung (ie, i, i_e, ee). Residualstrom je Schicht, 3 neutrale Vorlagen gemittelt.",
+  "innerhalb_ie_trennung_/i:/_vs_/aI/": {
+   "treffer": 0.95,
+   "null_p95": 0.7,
+   "p": 0.0,
+   "ab_schicht": 6
+  },
+  "konfundierung_pie_die_lie": {
+   "pie": "zu den /i:/-Nomen",
+   "die": "zu den /aI/-Praeteritum",
+   "lie": "zu den /aI/-Praeteritum",
+   "_lesart": "pie ist Nomen, die und lie sind Verben - das Muster folgt der WORTART, nicht dem Laut."
+  },
+  "transfer_ohne_ie_trainiert": {
+   "field_gruppe_zu_/i:/": "60-100 Prozent, steigend",
+   "tried_gruppe_zu_/aI/": "20-50 Prozent, unter Zufall"
+  },
+  "transfer_gegenrichtung": {
+   "6": {
+    "need_zu_field": 0.9,
+    "ride_zu_tried": 0.0
+   },
+   "12": {
+    "need_zu_field": 1.0,
+    "ride_zu_tried": 0.0
+   },
+   "18": {
+    "need_zu_field": 1.0,
+    "ride_zu_tried": 0.0
+   },
+   "22": {
+    "need_zu_field": 0.9,
+    "ride_zu_tried": 0.1111111111111111
+   }
+  },
+  "_befund": "Die 95-Prozent-Trennung innerhalb 'ie' ist real, aber sie ist Wortart, nicht Vokal. Der Transfertest scheitert einseitig: field wandert korrekt zu /i:/, tried wandert NICHT zu /aI/ sondern ebenfalls zu /i:/. Laut sagt tried->ride, Schreibung sagt tried->need (beides Doppelvokal). Die Daten folgen der Schreibung. Eine von der Schreibung abgeloeste Kodierung der Vokallaenge ist in diesem Modell nicht nachweisbar."
+ },
+ "uebergangszone_mlp_attn": {
+  "_design": "Bloecke 10-18, je Block einmal MLP-Beitrag und einmal Attention-Beitrag genullt (paralleles Residuum). rie: 30 Namenskontexte. Sprache: deutscher Text, 324 Positionen.",
+  "rie": {
+   "parametrisch_mlp_anteil": {
+    "10-14": 0.54,
+    "15-18": 0.68,
+    "block15": 0.73,
+    "block18": 0.76,
+    "summe": 0.61
+   },
+   "kontextuell_mlp_anteil": {
+    "10-14": 0.26,
+    "15-18": 0.59,
+    "summe": 0.34
+   },
+   "_hinweis": "Kontextuell in 15-18 sind die Absolutwerte winzig (0.02-0.05); der Anteil dort ist Rauschen.",
+   "_befund": "Parametrischer Abruf ist MLP-getragen und wird es ab Block 15 deutlich (49 Prozent bei 14, 73 bei 15). Kontextuelles Kopieren ist in 10-14 Attention-getragen (74 Prozent). Die Kante bei 14/15 ist der Punkt, an dem fuer den Abruf aus den Gewichten die MLP die Oberhand gewinnt."
+  },
+  "sprache": {
+   "mittel_abs_delta": {
+    "mlp": 0.384,
+    "attn": 0.314
+   },
+   "delta_mittel_vorzeichen": {
+    "mlp_je_block": [
+     0.024,
+     -0.063,
+     0.08,
+     0.075,
+     -0.165,
+     0.236,
+     0.101,
+     0.146,
+     0.189
+    ],
+    "attn_je_block": [
+     -0.09,
+     -0.464,
+     -0.023,
+     -0.269,
+     -0.049,
+     -0.083,
+     -0.012,
+     -0.345,
+     0.049
+    ],
+    "mlp_positiv_von_9": 7,
+    "attn_negativ_von_9": 8
+   },
+   "_befund": "Nullt man die Attention, driftet das Signal nach ENGLISCH (8 von 9 Bloecken negativ). Nullt man die MLP, driftet es nach DEUTSCH (7 von 9 positiv). Also: die Attention traegt die Kontextsprache Deutsch, die MLP traegt den englischen Prior. An englischen Eigennamen (Christopher, Tom) schiebt die MLP am staerksten nach Englisch - sie erkennt das Wort; die Erholung zurueck ins Deutsche nach dem Namen (Position 198) traegt die Attention.",
+   "_einschraenkung": "Betraege 0.02 bis 0.46 nats im Mittel - das Vorzeichenmuster ist konsistent, die Effekte sind moderat. Ein Text."
+  },
+  "_gemeinsames_bild": "MLP = was die Gewichte wissen (der Name, die Sprache eines Wortes). Attention = was der Kontext sagt (kopiere das, wir sind im Deutschen). Block 15 ist die Stelle, an der fuer den Namensabruf die MLP uebernimmt."
+ },
+ "tokenmischung_momentum": {
+  "_frage": "Wo (Block, Kopf, Quellposition, Textposition) modelliert die Tokenmischung - also die Attention - das Signal?",
+  "_design": "Alle 24 Bloecke, je Block einmal Attention und einmal MLP genullt (paralleles Residuum). Dann einzelne Koepfe genullt (kopfweise Eingabe von attention.dense auf 0; Kontrolle: alle 16 Koepfe einzeln genullt = Attention genullt, max|diff| 0.0). Dann Attention-Muster der gefundenen Koepfe (eager). rie: 30 Namenskontexte (4 bekannte, 6 unbekannte Namen, 3 Vorlagen). Sprache: deutscher Text, 324 Positionen.",
+  "block0": "Nullung in Block 0 zerstoert die Eingaberepraesentation (rie kontextuell: Attn 7.68, MLP 12.30 nats; Sprache: Attn |Δ| 2.02, MLP 2.63). Kein Mechanismus, sondern Substrat; in allen Rangfolgen ausgeklammert. Bestaetigt durch den Kopfsweep: staerkster Einzelkopf in Block 0 traegt 2 Prozent des Blockeffekts.",
+  "rie_kopieren": {
+   "bloecke_attention_signiert": {
+    "1": -0.717,
+    "2": -0.209,
+    "4": -0.579,
+    "8": -0.302,
+    "10": -0.201,
+    "12": -0.133,
+    "14": -0.146
+   },
+   "attention_anteil_je_block": {
+    "1": 0.81,
+    "4": 0.86,
+    "8": 0.92,
+    "10": 0.81,
+    "12": 0.82,
+    "14": 0.84
+   },
+   "kumuliert_ohne_block0": {
+    "50_prozent_bis_block": 4,
+    "90_prozent_bis_block": 14,
+    "maximum_block": 1
+   },
+   "koepfe": [
+    {
+     "block": 1,
+     "kopf": 11,
+     "delta": -0.26,
+     "muster": "Vorgaenger-Kopf: von rie(1.) 0.90 auf das Token davor; im deutschen Text 0.82 Masse auf dem Vorgaenger, mittlerer Abstand 2.3 Tokens"
+    },
+    {
+     "block": 1,
+     "kopf": 10,
+     "delta": -0.043,
+     "muster": "Vorgaenger-Kopf (0.97)"
+    },
+    {
+     "block": 4,
+     "kopf": 8,
+     "delta": -0.25,
+     "muster": "Induktionskopf: von der Query (Token vor rie(2.)) 0.89 auf rie(1.)"
+    },
+    {
+     "block": 8,
+     "kopf": 6,
+     "delta": -0.093,
+     "muster": "kein Induktionsmuster (0.06 auf rie(1.)); liest den Satzpunkt vor dem zweiten Vorkommen (0.80)"
+    },
+    {
+     "block": 10,
+     "kopf": 0,
+     "delta": -0.153,
+     "muster": "Induktionskopf: 0.94 auf rie(1.); traegt allein 76 Prozent des Blockeffekts"
+    },
+    {
+     "block": 13,
+     "kopf": 1,
+     "delta": -0.034,
+     "muster": "halber Induktionskopf: 0.56 auf rie(1.), 0.43 auf Position 0"
+    }
+   ],
+   "konzentration": "Block 1: Attention gesamt -0.72, Kopfsumme -0.33 (zwei Vorgaenger-Koepfe ersetzen einander). Block 4: -0.58 gegen -0.29. Block 10: -0.20 gegen -0.18 (ein Kopf).",
+   "_befund": "Das Kopieren ist die klassische zweistufige Schaltung: Vorgaenger-Koepfe in Block 1 (Kopf 11, Kopf 10) schreiben an rie(1.) 'steht hinter Win/Bar/...'; Induktionskoepfe in Block 4 (Kopf 8) und Block 10 (Kopf 0) lesen das vom zweiten Vorkommen aus. Die Haelfte des Attention-getragenen Effekts ist nach Block 4 erreicht, neun Zehntel nach Block 14. Ab Block 15 mischt die Attention fuer rie nichts mehr Messbares (Betraege 0.01 bis 0.05)."
+  },
+  "sprache": {
+   "bloecke_attention_signiert": {
+    "1": -0.461,
+    "4": -0.276,
+    "8": -0.227,
+    "11": -0.464,
+    "13": -0.269,
+    "17": -0.345,
+    "22": -0.183,
+    "23": -0.481
+   },
+   "bloecke_mlp_signiert_positiv": {
+    "15": 0.236,
+    "16": 0.101,
+    "17": 0.146,
+    "18": 0.189,
+    "20": 0.132,
+    "21": 0.455
+   },
+   "koepfe": [
+    {
+     "block": 11,
+     "kopf": 14,
+     "delta": -0.565,
+     "masse_de": 0.84,
+     "masse_en": 0.02,
+     "abstand_mittel": 55.1,
+     "liest": "deutsche Endungen und Funktionswoerter ueber den ganzen Text (ten, er, Die, koenn, hatte, wird, die); traegt den Blockeffekt allein (Block -0.46, Kopf -0.57)",
+     "rueckweg_190": -1.49
+    },
+    {
+     "block": 13,
+     "kopf": 11,
+     "delta": -0.287,
+     "masse_de": 0.75,
+     "masse_en": 0.02,
+     "abstand_mittel": 52.5,
+     "liest": "Zeilenumbruch @77 (0.17) und deutsche Tokens"
+    },
+    {
+     "block": 4,
+     "kopf": 11,
+     "delta": -0.139,
+     "delta_abs": 0.345,
+     "masse_de": 0.9,
+     "abstand_mittel": 55.7,
+     "liest": "deutsche Funktionswoerter (die, ist, dass, hatte, fuer, zu, das); an Namensanfaengen schiebt er nach Englisch (+0.48 bei Nullung)"
+    },
+    {
+     "block": 22,
+     "kopf": 12,
+     "delta": -0.13,
+     "abstand_mittel": 8.2,
+     "liest": "lokal, 0.31 auf dem Vorgaenger"
+    },
+    {
+     "block": 17,
+     "kopf": 6,
+     "delta": -0.11,
+     "liest": "Zeilenumbruch @77 (0.37) und Position 0 (0.35)"
+    }
+   ],
+   "block1": "Attention gesamt -0.46, aber kein Einzelkopf (staerkster -0.009, Kopfsumme +0.16): Substrat wie Block 0, kein Sprachkopf.",
+   "rueckweg": "An den vier Austrittsstellen (115 Reporter, 190 out, 197 rie, 205 Cruise) ist 190 die staerkste: Block 11 Kopf 14 -1.49, Block 13 Kopf 11 -0.82, Block 17 Kopf 6 -0.61. An 197 (nach McQuarrie) schieben dieselben Koepfe leicht nach Englisch (+0.21, +0.22); der Rueckweg dort laeuft nicht ueber sie.",
+   "textposition": {
+    "einsatz": "Die Attention-Summe (Bloecke 1-22) wird an Position 7 (Komma nach 'Stilettos pumpt') negativ, an Position 9 ('vor' in 'bevor') -4.7 nats. Davor (Positionen 0-6, ein Anglizismus) schiebt die Attention nach Englisch.",
+    "fenster_attention_summe": {
+     "0-40": -1.71,
+     "40-80": -1.56,
+     "80-120": -3.13,
+     "120-160": -3.79,
+     "160-200": -3.07,
+     "200-240": -3.15,
+     "240-280": -1.38,
+     "280-324": -3.75
+    },
+    "fenster_mlp_summe": {
+     "0-40": 0.55,
+     "40-80": 0.92,
+     "80-120": 1.04,
+     "120-160": 1.51,
+     "160-200": 0.77,
+     "200-240": -0.06,
+     "240-280": 2.41,
+     "280-324": 1.01
+    },
+    "deutsche_masse_block11_kopf14_je_fenster": [
+     0.63,
+     0.86,
+     0.88,
+     0.91,
+     0.82,
+     0.9,
+     0.82,
+     0.93
+    ],
+    "anteil_positionen_attention_negativ": 0.75,
+    "anteil_positionen_mlp_positiv": 0.64
+   },
+   "_befund": "Die Sprachspur wird nicht in einem Block gemischt, sondern als Kamm: Block 1 (Substrat), 4, 8, 11, 13, 17, 22, 23. Der eine Punkt, an dem ein einzelner Kopf das Signal traegt, ist Block 11 Kopf 14: langreichweitig (55 Tokens), liest deutsche Endungen und Funktionswoerter im ganzen Text, traegt den Blockeffekt allein und den staerksten Rueckweg (190). Im Text setzt der Attention-Anteil sofort mit den ersten deutschen Tokens ein (Position 7 bis 9), liegt in den ersten 80 Tokens bei etwa -1.6 nats und danach bei etwa -3, inhaltsabhaengig (240-280: -1.4). Die MLP schiebt ab Block 12 nach Englisch (Prior), am staerksten in Block 21 (+0.46) und 15 (+0.24)."
+  },
+  "_gemeinsames_bild": "Fuer beide Signale liegt der Punkt, an dem die Tokenmischung das Signal modelliert, frueh und punktuell: rie in Block 1 (Vorgaenger) und Block 4/10 (Induktion), Sprache in Block 11 Kopf 14 mit Zulieferern in 4 und 13. Ab Block 15 mischt die Attention fuer rie nichts mehr; fuer die Sprache bleibt ein duenner Kamm (17, 22, 23) gegen den englischen MLP-Prior.",
+  "_einschraenkung": "Einzelnullung unterschaetzt Bloecke mit ersetzbaren Koepfen (Block 1, 4). Muster sind beschreibend, die Kausalzahlen kommen aus der Nullung. Ein deutscher Text; 30 Namenskontexte.",
+  "_dateien": [
+   "RIE_MLP_ATTN_0_23.csv",
+   "SPRACHE_MLP_ATTN_0_23.csv",
+   "RIE_KOEPFE.csv",
+   "RIE_ATTN_MUSTER_ALLE_KOEPFE.csv",
+   "SPRACHE_KOEPFE.csv",
+   "KOEPFE_QUELLTOKENS.json"
+  ]
+ }
 }
