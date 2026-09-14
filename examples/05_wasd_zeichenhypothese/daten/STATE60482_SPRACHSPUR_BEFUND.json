@@ -137,5 +137,32 @@
     "braille_token_je_zeichen": 3.0,
     "braille_vokabeleintraege": 0,
     "bemerkung": "Braille hat KEINEN einzigen Vokabeleintrag; jedes Zeichen zerfaellt in seine drei UTF-8-Bytes. Kein Traeger, an dem ein Effekt ansetzen koennte - dieselbe Lage wie bei WASD. Morse dagegen hat Traeger."
+  },
+  "blockablation": {
+    "verfahren": "jeden Block einzeln durch die Identitaet ersetzen, Rest unveraendert, und den Anteil der gekippten finalen Top-1-Token messen",
+    "bloecke_2_bis_22": {
+      "en": [
+        0.10628019273281097,
+        0.32367148995399475
+      ],
+      "de": [
+        0.1975308656692505,
+        0.3888888955116272
+      ]
+    },
+    "nach_der_abbruchtiefe": {
+      "en_bloecke_18_22": 0.142,
+      "de_bloecke_20_22": 0.219
+    },
+    "nach_L50": {
+      "en": 0.152,
+      "de": 0.236
+    },
+    "block23": {
+      "en": 0.3285024166107178,
+      "de": 0.45679011940956116
+    },
+    "_urteil": "Kein Block ist im Leerlauf. Selbst die Bloecke NACH der scheinbaren Entscheidung kippen ein Fuenftel aller Top-1-Token. Die Vorstellung 'entschieden, danach beschleunigt durch' ist damit direkt widerlegt - nicht nur begrifflich, sondern gemessen.",
+    "_nebenbefund": "Die KL-Kosten sind winzig (0.08 bis 0.13 nats) waehrend 10 bis 28 Prozent der Top-1 kippen. Diese Bloecke verschieben die Verteilung kaum, aber oft ueber die argmax-Grenze: Feinarbeit an knappen Entscheidungen. Deutsch ist an JEDEM Block staerker betroffen als Englisch."
   }
 }
