@@ -155,6 +155,16 @@ falsch. Behoben; die Strukturentscheidung fällt jetzt beim Bau der Varianten.
 Die Ausgangshypothese — Sprachwechsel, Fehlerkorrektur — wurde in diesem Lauf
 nirgends operationalisiert. Sie ist weder gestützt noch widerlegt.
 
+**Der nächste Schritt kostet 18 Sekunden.** Bevor irgendetwas neu vorregistriert wird,
+muss einmal beschrieben werden, was das Modell an dieser Position überhaupt vorhersagt
+— genau die Information, deren Fehlen die Wahl von `bewegung` erst möglich gemacht
+hat. Das Notebook dafür steht
+([`wasd_grundlinien_karte_colab.ipynb`](wasd_grundlinien_karte_colab.ipynb)) und ist
+ausdrücklich urteilsfrei gebaut: volle Matrix Variante × Schablone × Feld, `log Z`,
+Entropie und die fünfzig wahrscheinlichsten Fortsetzungen je Zelle, gepaart innerhalb
+der Schablone, mit exaktem und Etiketten-Vertauschungstest und der im Trägerlauf
+fehlenden Konsistenzzahl.
+
 ---
 
 ## Wie der Lauf gebaut war

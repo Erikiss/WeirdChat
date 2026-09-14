@@ -209,6 +209,10 @@ Der Effekt ist real, groß und sauber isoliert. Er ist nur nicht das Gesuchte.
 ## 7. Was als Nächstes zu tun ist
 
 **Zuerst den Grundlinienteil neu rechnen — 720 Vorwärtsläufe, rund 18 Sekunden.**
+Das Notebook dafür steht:
+[`wasd_grundlinien_karte_colab.ipynb`](wasd_grundlinien_karte_colab.ipynb).
+Es hat **keine** Entscheidungsregel, keine Schwelle und kein Urteil — Tests erzwingen
+das, damit es nicht heimlich zu einem zweiten Test an denselben Schablonen wird.
 Nicht um etwas zu belegen, sondern um zu sehen, was an dieser Position überhaupt
 vorhergesagt wird. Zu protokollieren sind die volle Matrix Variante × Schablone ×
 Feld statt bloßer Mittel, dazu `log Z`, Entropie und die Top-50-Fortsetzungen je
