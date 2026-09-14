@@ -25,6 +25,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from experiment_traeger import (  # noqa: E402
     ROLLE_GETRENNT,
+    ROLLE_VERWORFEN,
+    TRAGENDE_ROLLEN,
     Beobachtung,
     Kausalmessung,
     Vorregistrierung,
@@ -48,14 +50,23 @@ def _werte(feld: str) -> dict[str, float]:
     return {z["variante"]: float(z[f"{feld}_nats"]) for z in _grundlinien()}
 
 
-def _beobachtungen(feld: str) -> list[Beobachtung]:
-    """Baut die Beobachtungen so, dass ``feld`` in der Rolle von ``bewegung`` steht."""
+def _beobachtungen(feld: str, *, wie_gelaufen: bool = False) -> list[Beobachtung]:
+    """Baut die Beobachtungen so, dass ``feld`` in der Rolle von ``bewegung`` steht.
+
+    ``wie_gelaufen`` stellt den Fehler des Laufs wieder her: dort trug die
+    Entscheidungsmenge auch die fuenf Buchstabenkandidaten, die der Tokenizer anders
+    zerlegt. Nur so laesst sich pruefen, was das Notebook tatsaechlich gerechnet hat -
+    und um wie viel es danebenlag.
+    """
     reihen: list[Beobachtung] = []
     for zeile in _grundlinien():
+        rolle = zeile["rolle"]
+        if wie_gelaufen and rolle == ROLLE_VERWORFEN:
+            rolle = "buchstabenkontrolle"
         reihen.append(
             Beobachtung(
                 text=zeile["variante"],
-                rolle=zeile["rolle"],
+                rolle=rolle,
                 bewegung_nats=float(zeile[f"{feld}_nats"]),
                 tastatur_nats=0.0,
                 gegenfeld_nats=0.0,
@@ -107,8 +118,13 @@ def test_alle_vierundzwanzig_bloecke_sind_erhalten():
 
 
 def test_die_regel_reproduziert_das_urteil_des_notebooks():
-    """Der Kern: dieselbe Regel, dieselben Zahlen, dasselbe Ergebnis."""
-    urteil = urteile(_beobachtungen("bewegung"), _kausal())
+    """Der Kern: dieselbe Regel, dieselben Zahlen, dasselbe Ergebnis.
+
+    Gerechnet wird hier mit dem Kontrollsatz, den das Notebook tatsaechlich benutzt
+    hat - einschliesslich der fuenf, die es selbst als verworfen gemeldet hatte.
+    """
+    urteil = urteile(_beobachtungen("bewegung", wie_gelaufen=True), _kausal())
+    assert urteil["n_kontrollen_in_der_regel"] == 28
     assert urteil["beste_kontrolle"] == "WASV"
     assert urteil["vorsprung_nats"] == pytest.approx(-0.1300, abs=1e-4)
     assert urteil["vorsprung_gegen_quantil_nats"] == pytest.approx(0.0387, abs=1e-4)
@@ -120,13 +136,41 @@ def test_die_regel_reproduziert_das_urteil_des_notebooks():
     assert _qa()["wasd_traeger_bestaetigt"] is False
 
 
-def test_die_getrennte_kontrolle_stand_wie_vorgesehen_ausserhalb_der_regel():
-    """28 Kontrollen tragen die Regel: 25 Buchstaben, dazu ASDW, FORD und NOTA.
-
-    Von 30 Varianten gehen zwei nicht ein - das Ziel selbst und ESDF.
-    """
+def test_die_reparierte_regel_fuehrt_nur_noch_dreiundzwanzig_kontrollen():
+    """20 strukturgleiche Buchstabenkontrollen, dazu ASDW, FORD und NOTA."""
     urteil = urteile(_beobachtungen("bewegung"), _kausal())
-    assert urteil["n_kontrollen_in_der_regel"] == 28
+    assert urteil["n_kontrollen_in_der_regel"] == 23
+
+
+def test_der_fehler_hat_das_urteil_nicht_gedreht():
+    """Die entscheidende Entlastung: der Befund bleibt in beiden Faellen negativ.
+
+    Die fuenf faelschlich eingeschlossenen Kontrollen lagen im Feld bewegung alle
+    unter der besten; die beste Kontrolle ist so oder so WASV. Ihre Aufnahme war
+    konservativ, nicht guenstig - sie hat den Vorsprung nicht vergroessert.
+    """
+    gelaufen = urteile(_beobachtungen("bewegung", wie_gelaufen=True), _kausal())
+    repariert = urteile(_beobachtungen("bewegung"), _kausal())
+    assert gelaufen["beste_kontrolle"] == repariert["beste_kontrolle"] == "WASV"
+    assert gelaufen["vorsprung_nats"] == repariert["vorsprung_nats"]
+    assert repariert["wasd_traeger_bestaetigt"] is False
+    # Nur die Quantilsfassung verschiebt sich, und zwar nach unten.
+    quantil_repariert = float(str(repariert["vorsprung_gegen_quantil_nats"]))
+    quantil_gelaufen = float(str(gelaufen["vorsprung_gegen_quantil_nats"]))
+    assert quantil_repariert == pytest.approx(0.0281, abs=1e-4)
+    assert quantil_repariert < quantil_gelaufen
+
+
+def test_die_verworfenen_kontrollen_werden_getrennt_gefuehrt():
+    """Sie sind gemessen und abgelegt, tragen aber keine Entscheidung."""
+    rollen = {z["variante"]: z["rolle"] for z in _grundlinien()}
+    verworfen = {t for t, r in rollen.items() if r == ROLLE_VERWORFEN}
+    assert verworfen == {"WASE", "WASH", "WASK", "WASS", "WAST"}
+    assert ROLLE_VERWORFEN not in TRAGENDE_ROLLEN
+
+
+def test_die_getrennte_kontrolle_stand_wie_vorgesehen_ausserhalb_der_regel():
+    urteil = urteile(_beobachtungen("bewegung"), _kausal())
     assert set(urteil["getrennt_berichtet"]) == {"ESDF"}  # type: ignore[arg-type]
 
 

@@ -113,6 +113,7 @@ def test_ziel_und_kontrollen_stimmen_mit_dem_modul_ueberein(konfig: dict[str, An
     assert konfig["REIHENFOLGE_KONTROLLE"] == modul.REIHENFOLGE_KONTROLLE
     assert tuple(konfig["ZUSATZKONTROLLEN"]) == modul.ZUSATZKONTROLLEN
     assert konfig["ROLLE_GETRENNT"] == modul.ROLLE_GETRENNT
+    assert konfig["ROLLE_VERWORFEN"] == modul.ROLLE_VERWORFEN
     assert konfig["ZUSATZROLLEN"] == modul.ZUSATZROLLEN
 
 
@@ -279,3 +280,23 @@ def test_die_ausgabe_liegt_unter_einem_eigenen_pfad(konfig: dict[str, Any]):
     """Ein Lauf darf den vorigen nicht ueberschreiben - der Zeitstempel trennt sie."""
     assert konfig["AUSGABE"].startswith("./")
     assert "strftime" in _gesamttext()
+
+
+def test_das_notebook_baut_die_entscheidungsmenge_aus_den_tragenden_rollen():
+    """Der Fehler des Laufs vom 14.09.2026 darf im Notebook nicht wiederkehren.
+
+    Damals lautete die Zeile ``IN_DER_REGEL = [v for v in VARIANTEN if v.rolle not
+    in ("ziel", ROLLE_GETRENNT)]`` - und liess damit die fuenf Buchstabenkandidaten
+    wieder herein, die die Strukturpruefung zwei Zellen vorher verworfen hatte.
+    """
+    text = _gesamttext()
+    assert "TRAGENDE_ROLLEN" in text
+    assert "IN_DER_REGEL = [v for v in VARIANTEN if v.rolle in TRAGENDE_ROLLEN]" in text
+    assert 'v.rolle not in ("ziel", ROLLE_GETRENNT)' not in text
+
+
+def test_die_strukturentscheidung_faellt_beim_bau_der_varianten():
+    """Sie muss in die Rolle wandern, sonst kann eine spaetere Zelle sie uebersehen."""
+    text = _gesamttext()
+    assert "ROLLE_VERWORFEN" in text
+    assert "zerfaellt_wie_das_ziel" in text

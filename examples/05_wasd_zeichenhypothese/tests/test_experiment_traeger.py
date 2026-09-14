@@ -23,7 +23,10 @@ from experiment_traeger import (  # noqa: E402
     MESSVOKABULAR_IDS,
     MINDEST_KONTROLLEN,
     ROLLE_GETRENNT,
+    ROLLE_VERWORFEN,
     SCHABLONEN,
+    TRAGENDE_ROLLEN,
+    ZIEL,
     ZIEL_ZERLEGUNG,
     ZUSATZKONTROLLEN,
     Beobachtung,
@@ -451,3 +454,65 @@ def test_die_ersetzten_woerter_stehen_nicht_mehr_im_vokabular():
     assert " senate" not in alle
     assert " sprint" in MESSVOKABULAR["bewegung"]
     assert " parliament" in MESSVOKABULAR["gegenfeld"]
+
+
+# --------------------------------------------------------------------------- #
+# Es darf nur einen Begriff von "Kontrolle" geben
+# --------------------------------------------------------------------------- #
+
+
+def test_die_regel_benutzt_genau_die_kontrollen_die_die_pruefung_durchlaesst():
+    """Der Fehler des Laufs vom 14.09.2026, als Test festgehalten.
+
+    Damals gab es zwei Begriffe: die Strukturpruefung rechnete mit den zwanzig
+    strukturgleichen Buchstabenkontrollen, die Entscheidungsregel mit allen
+    fuenfundzwanzig. Die Pruefung meldete fuenf als verworfen - und die Regel
+    benutzte sie trotzdem. Der Befund drehte sich dadurch nicht, aber jede
+    berichtete Streuung war falsch, und die Zusicherung "Ziel und Kontrolle
+    unterscheiden sich in genau einem Token" galt fuer fuenf von achtundzwanzig
+    nicht.
+
+    Dieser Test verlangt, dass beide Mengen identisch sind.
+    """
+    varianten = _varianten()
+    pruefung = pruefe_design(varianten)
+
+    beobachtungen = [
+        Beobachtung(v.text, v.rolle, 0.0, 0.0, 0.0)
+        for v in varianten
+        if v.rolle != "ziel"
+    ]
+    beobachtungen.append(Beobachtung(ZIEL, "ziel", 1.0, 0.0, 0.0))
+    urteil = urteile(beobachtungen, _kausal([(12, 0.9, 0.0), (13, 0.9, 0.0)]))
+
+    aus_der_pruefung = pruefung.n_buchstabenkontrollen + 1 + len(ZUSATZKONTROLLEN) - 1
+    assert urteil["n_kontrollen_in_der_regel"] == aus_der_pruefung
+    assert urteil["n_kontrollen_in_der_regel"] == 23
+
+
+def test_kein_verworfener_kandidat_traegt_die_regel():
+    varianten = _varianten()
+    verworfen = {v.text for v in varianten if v.rolle == ROLLE_VERWORFEN}
+    assert verworfen == ABWEICHLER
+    assert ROLLE_VERWORFEN not in TRAGENDE_ROLLEN
+    assert ROLLE_GETRENNT not in TRAGENDE_ROLLEN
+    assert "ziel" not in TRAGENDE_ROLLEN
+
+
+def test_jede_tragende_kontrolle_trennt_sich_vom_ziel_in_genau_einem_token():
+    """Die Zusicherung, auf der das ganze Design beruht - jetzt geprueft statt behauptet.
+
+    ``FORD`` ist die Ausnahme, die die Regel bestaetigt: sie unterscheidet sich im
+    **ersten** Token statt im letzten, und genau dafuer ist sie da.
+    """
+    for variante in _varianten():
+        if variante.rolle not in TRAGENDE_ROLLEN:
+            continue
+        assert len(variante.zerlegung) == len(ZIEL_ZERLEGUNG), variante.text
+        unterschiede = sum(
+            1 for a, b in zip(variante.zerlegung, ZIEL_ZERLEGUNG) if a != b
+        )
+        if variante.rolle == "reihenfolgekontrolle" or variante.text == "NOTA":
+            assert unterschiede == 2, variante.text  # beide Token, mit Absicht
+        else:
+            assert unterschiede == 1, variante.text

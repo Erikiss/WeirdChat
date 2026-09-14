@@ -114,7 +114,50 @@ etwas auffiel.
 
 ---
 
-## Der nächste Lauf ist gebaut
+## Der Lauf ist durch — und negativ
+
+Am 14.09. lief der Nachfolgeversuch auf einer A100: 18 024 Vorwärtsläufe, 25.2 ms je
+Lauf. Die vorregistrierte Regel ist in **beiden** Teilen nicht erfüllt.
+Vollständiger Bericht: [`ERGEBNIS_TRAEGERLAUF.md`](ERGEBNIS_TRAEGERLAUF.md).
+
+| | |
+|---|---|
+| Beobachtungsteil (`bewegung`) | Rang 3 von 30, Vorsprung **−0.1300** nats bei Schwelle 0.5 |
+| Kausalteil | 0 von 24 Blöcken — aber der Test war **konstruktionsbedingt leer**, nicht negativ |
+| Gesamturteil | `wasd_traeger_bestaetigt = False` |
+
+Drei Dinge sind daran wichtiger als das Urteil selbst.
+
+**Erstens: der Kausalteil konnte nicht bestehen.** Drei der fünf Eingriffspaare
+unterscheiden sich vom Ziel nur im letzten Token — und genau dessen Residuum wird
+ersetzt. Bei kausaler Attention ist die Ausgabe danach identisch, also sind
+Wiederherstellung und Leck exakt 1. Das gemittelte Leck kann 0.60 nicht
+unterschreiten; verlangt waren ≤ 0.20. 1 728 der 2 880 Transferzeilen rechneten eine
+vorab bekannte Konstante aus. Das ist kein Befund über das Modell, sondern ein
+untaugliches Instrument — und es fehlte die Positivkontrolle, die das vorher gezeigt
+hätte.
+
+**Zweitens: das Entscheidungsfeld lag am Messfenster vorbei.** Alle Schablonen enden
+mit dem Platzhalter, gemessen wird das nächste Token. Nach einem Tastenkürzel steht
+dort ein Nomen, kein Verb. Im mitgemessenen Feld `tastatur` liegt `WASD` auf Rang 1
+mit 1.70 nats Vorsprung, im Gegenfeld ist es von allen am stärksten unterdrückt — und
+vier Kontrollen schließen einzeln aus, dass es am Endtoken, an der Korpushäufigkeit,
+an der Buchstabenmenge oder am Begriff „Bewegungstasten" liegt. Das ist eine
+**Hypothese**, kein Befund: die Regel hatte `bewegung` benannt. Und inhaltlich ist ein
+starker Tastatur-Kollokationseffekt genau das, was gewöhnliches lexikalisches Wissen
+über eine 13 870 mal gesehene Abkürzung vorhersagt.
+
+**Drittens: ein Fehler im eigenen Code.** Die Strukturprüfung verwarf fünf Kandidaten
+und die Entscheidungsregel benutzte sie trotzdem — es gab zwei Begriffe von
+„Kontrolle". Der Befund dreht sich dadurch nicht, aber jede berichtete Streuung war
+falsch. Behoben; die Strukturentscheidung fällt jetzt beim Bau der Varianten.
+
+Die Ausgangshypothese — Sprachwechsel, Fehlerkorrektur — wurde in diesem Lauf
+nirgends operationalisiert. Sie ist weder gestützt noch widerlegt.
+
+---
+
+## Wie der Lauf gebaut war
 
 Aus Punkt 4 folgt der Nachfolgeversuch, und der ist inzwischen vollständig
 ausformuliert: das Design in [`experiment_traeger.py`](experiment_traeger.py), der

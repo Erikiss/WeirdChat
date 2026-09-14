@@ -87,6 +87,19 @@ REIHENFOLGE_KONTROLLE = "ASDW"
 #: werden muss.
 ROLLE_GETRENNT = "tastenkontrolle_unabgeglichen"
 
+#: Rolle der Buchstabenkontrollen, die der Tokenizer anders zerlegt als das Ziel.
+#: Sie werden weiter **gemessen** - die Zahlen sind nuetzlich -, gehen aber nicht in
+#: die Entscheidungsregel ein, weil sie sich vom Ziel in **beiden** Token
+#: unterscheiden und nicht nur im letzten.
+#:
+#: Diese Rolle wird schon beim Bau der Varianten vergeben, nicht erst bei der
+#: Pruefung. Der Grund ist ein Fehler im Lauf vom 14.09.2026: dort gab es zwei
+#: Begriffe von "Kontrolle" - die Strukturpruefung rechnete mit den zwanzig
+#: strukturgleichen, die Entscheidungsregel mit allen fuenfundzwanzig. Die Pruefung
+#: meldete fuenf Kandidaten als verworfen, und die Regel benutzte sie trotzdem.
+#: Es darf nur einen Begriff geben, und er muss an der Quelle entstehen.
+ROLLE_VERWORFEN = "buchstabenkontrolle_verworfen"
+
 ZUSATZKONTROLLEN: tuple[tuple[str, str], ...] = (
     ("FORD", "endtokenkontrolle"),
     ("NOTA", "frequenzkontrolle"),
@@ -200,6 +213,15 @@ class Vorregistrierung:
 
 VORREGISTRIERUNG = Vorregistrierung()
 
+#: Genau die Rollen, die die Entscheidungsregel traegt. Alles andere - das Ziel
+#: selbst, die unabgeglichene Tastenkontrolle, die vom Tokenizer verworfenen
+#: Buchstabenkandidaten - bleibt draussen. Eine einzige Liste, damit die Regel und
+#: die Strukturpruefung nicht auseinanderlaufen koennen.
+TRAGENDE_ROLLEN: frozenset[str] = frozenset(
+    {"buchstabenkontrolle", "reihenfolgekontrolle"}
+    | {rolle for _, rolle in ZUSATZKONTROLLEN if rolle != ROLLE_GETRENNT}
+)
+
 
 @dataclass(frozen=True)
 class Variante:
@@ -267,7 +289,32 @@ def baue_varianten(tokenizer: TokenizerLike) -> list[Variante]:
     erfasse(REIHENFOLGE_KONTROLLE, "reihenfolgekontrolle")
     for text, rolle in ZUSATZKONTROLLEN:
         erfasse(text, rolle)
-    return varianten
+
+    # Die Strukturentscheidung faellt hier, an der einzigen Stelle, an der die
+    # Zerlegung vorliegt - und sie faellt in die Rolle hinein. Danach kann keine
+    # spaetere Rechnung sie mehr uebersehen.
+    return [
+        variante
+        if not (
+            variante.rolle == "buchstabenkontrolle"
+            and not _zerfaellt_wie_das_ziel(variante)
+        )
+        else Variante(
+            text=variante.text,
+            rolle=ROLLE_VERWORFEN,
+            zerlegung=variante.zerlegung,
+            token_ids=variante.token_ids,
+        )
+        for variante in varianten
+    ]
+
+
+def _zerfaellt_wie_das_ziel(variante: Variante) -> bool:
+    """Gleiche Tokenzahl und gleiches erstes Token - dann trennt sie genau ein Token."""
+    return (
+        len(variante.zerlegung) == len(ZIEL_ZERLEGUNG)
+        and variante.zerlegung[0] == ZIEL_ZERLEGUNG[0]
+    )
 
 
 def strukturgleiche_kontrollen(varianten: Sequence[Variante]) -> list[Variante]:
@@ -279,13 +326,7 @@ def strukturgleiche_kontrollen(varianten: Sequence[Variante]) -> list[Variante]:
     Design: bei ihnen unterscheidet sich **beides** vom Ziel, nicht nur das letzte
     Token. Welche das sind, entscheidet der Tokenizer, nicht eine Annahme.
     """
-    return [
-        variante
-        for variante in varianten
-        if variante.rolle == "buchstabenkontrolle"
-        and len(variante.zerlegung) == len(ZIEL_ZERLEGUNG)
-        and variante.zerlegung[0] == ZIEL_ZERLEGUNG[0]
-    ]
+    return [v for v in varianten if v.rolle == "buchstabenkontrolle"]
 
 
 def pruefe_design(varianten: Sequence[Variante]) -> Designpruefung:
@@ -302,9 +343,8 @@ def pruefe_design(varianten: Sequence[Variante]) -> Designpruefung:
             f"Ziel zerfaellt in {list(ziel.zerlegung)}, erwartet {list(ZIEL_ZERLEGUNG)}"
         )
 
-    kontrollen = [v for v in varianten if v.rolle == "buchstabenkontrolle"]
     brauchbar = strukturgleiche_kontrollen(varianten)
-    verworfen = sorted({v.text for v in kontrollen} - {v.text for v in brauchbar})
+    verworfen = sorted(v.text for v in varianten if v.rolle == ROLLE_VERWORFEN)
     if len(brauchbar) < MINDEST_KONTROLLEN:
         maengel.append(
             f"nur {len(brauchbar)} strukturgleiche Kontrollen, mindestens "
@@ -400,7 +440,7 @@ def urteile(
     stuetzen noch verwaessern kann.
     """
     ziele = [b for b in beobachtungen if b.rolle == "ziel"]
-    kontrollen = [b for b in beobachtungen if b.rolle not in ("ziel", ROLLE_GETRENNT)]
+    kontrollen = [b for b in beobachtungen if b.rolle in TRAGENDE_ROLLEN]
     getrennt = [b for b in beobachtungen if b.rolle == ROLLE_GETRENNT]
     if len(ziele) != 1 or not kontrollen:
         raise ValueError("Beobachtungsteil braucht genau ein Ziel und Kontrollen")

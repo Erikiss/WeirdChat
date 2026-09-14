@@ -29,5 +29,17 @@
       "tastatur": -5.8724,
       "gegenfeld": -11.3276
     }
-  }
+  },
+  "max_residual_fehler_relativ": 1.069e-07,
+  "n_varianten": 30,
+  "n_strukturgleiche_buchstabenkontrollen": 20,
+  "n_kontrollen_in_der_regel": 28,
+  "verworfen": [
+    "WASE",
+    "WASH",
+    "WASK",
+    "WASS",
+    "WAST"
+  ],
+  "n_schablonen": 24
 }

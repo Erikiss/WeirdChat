@@ -19,6 +19,15 @@ An den Token 124 bis 127 steht `ĠMc`, `Qu`, `ar`, `rie` — der Ort des früher
 
 ---
 
+> **Nachtrag vom 14.09.2026.** Der hier in Abschnitt 5 entworfene Nachfolgeversuch
+> ist gelaufen. Die vorregistrierte Regel ist in beiden Teilen nicht erfüllt; der
+> Kausalteil erwies sich als konstruktionsbedingt leer, und im Code fand sich ein
+> Fehler, der zwei verschiedene Kontrollmengen nebeneinander führte. Der vollständige
+> Bericht steht in [`ERGEBNIS_TRAEGERLAUF.md`](ERGEBNIS_TRAEGERLAUF.md); was unten
+> steht, ist der Stand **vor** dem Lauf.
+
+---
+
 ## 1. Was die drei Läufe gemessen haben
 
 Alle drei sind **Text- und Tokenizer-Statistik ohne Vorwärtslauf**. Kein Gewicht
@@ -642,6 +651,7 @@ nächsten Versuch an mehr als einem Text zu führen.
 | `zeichensatz_statistik.py` | Buchstabendichte gegen drei Nullmodelle, inklusive des frequenzangepassten |
 | `tokenizer_sonde.py` | prüft vor einem GPU-Lauf, ob eine Zeichenfolge das Netz als Einheit erreicht |
 | `experiment_traeger.py` | der vorregistrierte Nachfolgeversuch: Design, Strukturprüfung, Entscheidungsregel |
+| `ERGEBNIS_TRAEGERLAUF.md` | der Bericht über den Lauf vom 14.09.: Tore, beide Regelteile, der leere Kausaltest, der Codefehler, was bleibt |
 | `wasd_traeger_messlauf_colab.ipynb` | der Messlauf für die GPU: Vorflug, beide Qualitätstore, 720 Grundlinien, 5 760 Transfers, Auswertung nach der Regel |
 | `pile_nullmodell.py` | das Dokument-Nullmodell aus dem Trainingskorpus, plus die Basisrate von WASD |
 | `PROJEKTSTAND.md` | die Gesamtuntersuchung im Überblick: sieben Abschnitte, drei Arbeitslinien, was am 13.09. anders ist |
@@ -652,6 +662,7 @@ nächsten Versuch an mehr als einem Text zu führen.
 | `tests/test_zyklus_und_periode.py` | was die Zyklus- und Positionsanalyse wirklich zeigt |
 | `tests/test_mcq_varianten.py` | der Tokenisierungsfaktor in der früheren McQuarrie-Linie |
 | `tests/test_experiment_traeger.py` | Entscheidungsregel gegen gepflanzte Wahrheiten, inklusive der halb positiven Fälle |
+| `tests/test_traegerlauf_ergebnis.py` | rechnet den Lauf gegen die vorregistrierte Regel nach — und hält fest, was der Codefehler geändert hat und was nicht |
 | `tests/test_messlauf_notebook.py` | hält Notebook und Designmodul zusammen: jede doppelt geführte Konstante, beide Qualitätstore |
 | `tests/test_pile_nullmodell.py` | Rechenlogik plus Konsistenz gegen den gespeicherten Korpuslauf |
 | `tests/test_ological_struktur.py` | die Tokenstruktur der Störungen im parallelen Lauf |
