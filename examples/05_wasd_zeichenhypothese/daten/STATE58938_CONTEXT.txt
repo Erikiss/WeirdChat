@@ -1,0 +1,10 @@
+ though
+<Stormx2> Bepo: Does that with me. Go get the GParted LiveCD. use that.
+<MVarrieur> Okay I haven't used ubuntu since 5.10, and mostly it's been just plug and play, i decided to dual boot linux yet again and put 6.10 on, and I cannot get it to work with Windows XP Internet Connection Sharing for the life of me, even directly connected to the router I can't get the internet to work, I get an IP and then that's it, no pinging, no websites, etc.
+<lupine_85> MVarrieur: is the default gateway set appropriately?
+<MVarrieur> ya, all the settings are right, i've tried it with DHCP and Static
+<Meidos> Seems my eth0 now is eth3 - any way of changing this?
+<mbutUbuntu> goodnight
+<mbutUbuntu> I go away
+<MVarrieur> g'night
+<Stormx2> *sigh* Everyone who helps out, you do a great job heh
